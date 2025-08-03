@@ -1,4 +1,11 @@
 #!/bin/bash
+#
+# Godux - Godot Universal eXport
+# Copyright (c) 2025 FarizzDev
+#
+# This project is licensed under the MIT License.
+# See the LICENSE file in the Godux GitHub repository for full license information.
+#
 
 # Cleanup function to remove secrets
 endProgram() {
