@@ -1,0 +1,174 @@
+name: Export Godot Project
+
+on:
+  workflow_dispatch:
+    inputs:
+      godot_link:
+        required: true
+        default: "https://github.com/godotengine/godot/releases/download/3.6-stable/Godot_v3.6-stable_linux_headless.64.zip"
+        description: "Enter Godot link:"
+      templates_link:
+        required: true
+        default: "https://github.com/godotengine/godot/releases/download/3.6-stable/Godot_v3.6-stable_export_templates.tpz"
+        description: "Enter Export Templates link:"
+      platform:
+        required: true
+        default: "Android"
+        description: "Enter platform:"
+        type: choice
+        options:
+          - "Android"
+          - "iOS"
+          - "HTML5"
+          - "Mac OSX"
+          - "UWP"
+          - "Windows Desktop"
+          - "Linux/X11"
+          - "All"
+      debug:
+        description: "Debug version"
+        type: boolean
+        default: false
+      cache:
+        description: "Cache"
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GODOT_LINK: ${{ inputs.godot_link }}
+      TEMPLATES_LINK: ${{ inputs.templates_link }}
+      PLATFORM: ${{ inputs.platform }}
+      KEYPASS: ${{ secrets.KEYPASS }}
+      USER: ${{ secrets.USER }}
+      DEBUG: ${{ inputs.debug }}
+      CACHE: ${{ inputs.cache }}
+
+    steps:
+      - name: 🛒 Checkout repository
+        uses: actions/checkout@v3
+
+      - name: ⚙️ Preapare
+        run: |
+          mkdir -p export
+          if [ ! -f export_presets.cfg ]; then
+            echo "Error: File export_presets.cfg not found."
+            exit 1
+          fi
+
+          if [ "$PLATFORM" = "All" ]; then
+            ISANDROID=$(awk -F= '
+              BEGIN { IGNORECASE=1 }
+              /^\[preset\.[0-9]+\]$/ { in_preset=1; next }
+              /^\[/ && $0 !~ /^\[preset\.[0-9]+\]$/ { in_preset=0 }
+              in_preset && /platform/ && $2 ~ /Android/ { print "true"; exit }
+            ' export_presets.cfg)
+          else
+            ISANDROID=$(awk -F= -v target="$PLATFORM" '
+              BEGIN { IGNORECASE=1 }
+              /^\[preset\.[0-9]+\]$/ { in_preset=1; found_name=0; next }
+              /^\[/ && $0 !~ /^\[preset\.[0-9]+\]$/ { in_preset=0 }
+
+              in_preset && $1 ~ /name/ && $2 ~ "\"" target "\"" { found_name=1 }
+              in_preset && found_name && $1 ~ /platform/ && $2 ~ /Android/ {
+                print "true"; exit
+              }
+            ' export_presets.cfg)
+          fi
+
+          echo "ISANDROID=${ISANDROID:-false}" >> "$GITHUB_ENV"
+
+          VERSION=$(echo ${{ env.GODOT_LINK }} | sed -E 's|.*\/([0-9]+\.[0-9]+)-([a-z0-9]+).*|\1.\2|')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: 📝 Godot Export Templates Cache
+        if: env.CACHE == 'true'
+        uses: actions/cache@v4
+        id: templates-cache
+        with:
+          path: ~/.local/share/godot/templates/${{ env.VERSION }}
+          key: ${{ runner.os }}-godot-templates-${{ env.VERSION }}
+
+      - name: 📥 Download Godot
+        run: |
+          wget $GODOT_LINK -O godot.zip
+          unzip godot.zip
+          sudo mv Godot_* /usr/local/bin/godot
+          chmod +x /usr/local/bin/godot
+
+      - name: 📤 Extract Godot Export Templates
+        if: env.CACHE == 'false' || steps.templates-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -L $TEMPLATES_LINK -o godot-templates.tpz
+          mkdir -p ~/.local/share/godot/templates/${{ env.VERSION }}
+          unzip godot-templates.tpz -d ~/godot-templates
+          mv ~/godot-templates/templates/* ~/.local/share/godot/templates/${{ env.VERSION }}/
+          rm -rf ~/godot-templates
+
+      - name: 📱 Set up JDK (Only for Android)
+        if: env.ISANDROID == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: 📱 Set up Android SDK (Only for Android)
+        if: env.ISANDROID == 'true'
+        uses: android-actions/setup-android@v3
+
+      - name: 📝 Get Keystore Paths
+        if: env.ISANDROID == 'true'
+        run: |
+          DEBUG_KEYSTORE_PATH=$(awk -F'=' '/keystore\/debug=/{gsub(/"/, "", $2); gsub(/res:\/\//, "", $2); print $2}' export_presets.cfg | head -n 1)
+          RELEASE_KEYSTORE_PATH=$(awk -F'=' '/keystore\/release=/{gsub(/"/, "", $2); gsub(/res:\/\//, "", $2); print $2}' export_presets.cfg | head -n 1)
+          echo "DEBUG_KEYSTORE_PATH=${DEBUG_KEYSTORE_PATH:-debug.keystore}" >> $GITHUB_ENV
+          echo "RELEASE_KEYSTORE_PATH=${RELEASE_KEYSTORE_PATH:-release.keystore}" >> $GITHUB_ENV
+          echo "Debug Keystore Path: ${DEBUG_KEYSTORE_PATH:-debug.keystore}"
+          echo "Release Keystore Path: ${RELEASE_KEYSTORE_PATH:-release.keystore}"
+
+      - name: 🔑 Generate Keystore (Only for Android)
+        if: env.ISANDROID == 'true'
+        run: |
+          mkdir -p "$(dirname "${{ env.DEBUG_KEYSTORE_PATH }}")"
+          keytool -genkey -v \
+            -keystore "${{ env.DEBUG_KEYSTORE_PATH }}" \
+            -alias androiddebugkey \
+            -storepass android -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US" \
+            -keyalg RSA -keysize 2048 -validity 9000
+          mkdir -p "$(dirname "${{ env.RELEASE_KEYSTORE_PATH }}")"
+          keytool -genkey -v \
+            -keystore "${{ env.RELEASE_KEYSTORE_PATH }}" \
+            -alias "${{ env.USER }}" \
+            -storepass "${{ env.KEYPASS }}" -keypass "${{ env.KEYPASS }}" \
+            -dname "CN=Android Export,O=Android,C=US" \
+            -keyalg RSA -keysize 2048 -validity 10000
+
+      - name: 🛠 Export
+        run: |
+          if [ ${{ env.DEBUG }} = "true" ]; then
+            EXPORT_FLAG="--export-debug"
+          else
+            EXPORT_FLAG="--export"
+          fi
+
+          if [ "$PLATFORM" = "All" ]; then
+            awk -v flag="$EXPORT_FLAG" -F= '/^\[preset\.[0-9]+\]/{found=1}
+            found && /name/ {
+              system("godot " flag " \""$2"\"");
+              found=0
+            }' export_presets.cfg
+          else
+            godot "$EXPORT_FLAG" "$PLATFORM"
+          fi
+
+          zip -r -7 result.zip export/
+
+      - name: 🚀 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "build-${{ github.run_id }}" result.zip --notes "Automated build from GitHub Actions"
