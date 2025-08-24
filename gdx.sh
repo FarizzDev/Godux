@@ -251,6 +251,8 @@ read -p "Enter Templates link (default Godot v3.6-stable): " templates_link
 validate_url "$templates_link" "Templates link"
 
 # Debug and Cache input
+read -p "Enter a base name for output files (e.g., MyGame): " dname
+echo -e "\\e[90m(Note: For new Android keys, this is also used as the certificate's CN. If using an existing key, it's only for filenames.)\\e[0m"
 read -p "Enable debug? (y/N): " debug
 debug=${debug,,}  # Convert to lowercase
 debug=${debug:-"n"}
@@ -270,7 +272,27 @@ if [[ "$platform" == "Android" || "$platform" == "All" ]]; then
   ' export_presets.cfg)
 
   if [[ "$ISANDROID" == "true" && ! "$debug" == "true" ]]; then
-    read -p "Enter 'user' for Android keystore: " user
+    read -p "Do you have an existing release.keystore file? (y/N): " has_keystore
+    has_keystore=${has_keystore,,}
+    has_keystore=${has_keystore:-\"n\"}
+
+    if [[ "$has_keystore" =~ ^y(e?s)?$ ]]; then
+      read -p "Enter the path to your release.keystore file: " keystore_path
+      if [ ! -f "$keystore_path" ]; then
+        echo "Error: Keystore file not found at '$keystore_path'"
+        exit 1
+      fi
+      echo "Encoding and setting keystore secret..."
+      keystore_base64=$(base64 -w 0 "$keystore_path")
+      gh secret set RELEASE_KEYSTORE_BASE64 --body "$keystore_base64"
+    else
+      echo "No existing keystore. We will generate a new one."
+      gh secret remove RELEASE_KEYSTORE_BASE64 &>/dev/null || true
+      read -p "Enter Organization for Android (O, optional): " org
+      read -p "Enter 2-letter Country Code for Android (C, optional): " country
+    fi
+
+    read -p "Enter 'user' alias for Android keystore: " user
     read -sp "Enter 'pass' for Android keystore: " keypass
     while [[ ${#keypass} -lt 6 ]]; do
       echo "Keypass must be at least 6 characters long."
@@ -283,8 +305,8 @@ if [[ "$platform" == "Android" || "$platform" == "All" ]]; then
 
   printf "\n"
   echo "Setting repository secrets..."
-  gh secret set USER --body "$user"
-  gh secret set KEYPASS --body "$keypass"
+  gh secret set KEYSTORE_USER --body "$user"
+  gh secret set KEYSTORE_PASS --body "$keypass"
 fi
 
 printf "\n"
@@ -293,7 +315,7 @@ echo -e "\e[38;2;61;220;132m# Running workflow...\e[0m"
 args=("export.yml")
 
 # Add fields if inputs are present
-for FIELD in godot_link templates_link platform debug cache
+for FIELD in godot_link templates_link platform debug cache dname org country
 do
   VALUE="${!FIELD}"
   if [ -n "$VALUE" ]; then
