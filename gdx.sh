@@ -197,6 +197,7 @@ names=$(grep -oP '(?<=^name=")[^"]*' export_presets.cfg)
 parsed_platforms=$(paste -d'|' <(echo "$platforms") <(echo "$names"))
 
 options=()
+SEP=$'\x1F'
 # Use a simple while loop with a pipe delimiter to read the pairs
 while IFS='|' read -r key name; do
   # Skip any empty lines that might result from parsing
@@ -217,7 +218,7 @@ while IFS='|' read -r key name; do
 
   if [ -n "$color_var" ]; then
     # Apply color to the display name by replacing the placeholder text in the color variable
-    options+=("$(echo -e "$color_var" | sed "s/m.*m/m$name/g")")
+    options+=("$(echo -e "$color_var" | sed "s${SEP}m.*m${SEP}m$name${SEP}g")")
   else
     # Fallback for unknown platforms, no color
     options+=("$name")
