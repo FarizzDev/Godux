@@ -58,10 +58,10 @@ The setup process is designed to be a one-time affair.
     cd Godux
     ```
 
-2.  **Run the setup script:**
+2.  **Run the installation script:**
 
     ```bash
-    bash setup.sh
+    bash install.sh
     ```
 
     This script will automatically detect your operating system, install all the required dependencies (`git`, `gh`, `fzf`, `bc`, `jq`), and install `gdx` as a global command on your system.
