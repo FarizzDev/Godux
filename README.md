@@ -88,6 +88,30 @@ The tool will then guide you through the following steps:
 4.  **Monitor the Build:** The script will show you the real-time progress of the build.
 5.  **Download:** Once finished, you will be prompted to download the exported artifact. The file will be saved into the `export/` directory.
 
+## 🤝 Contributing
+
+Contributions are always welcome! Whether it's a new feature, a bug fix, or documentation improvements, we appreciate your help.
+
+Please follow these steps to contribute:
+
+1.  **Fork** the repository.
+2.  Create a new branch (`git checkout -b feature/YourAmazingFeature`).
+3.  Make your changes and commit them (`git commit -m 'Add some AmazingFeature'`).
+4.  Push to your branch (`git push origin feature/YourAmazingFeature`).
+5.  Open a **Pull Request**.
+
+## 🐛 Reporting Bugs
+
+If you encounter a bug or have a problem, please open an **Issue** on the [GitHub repository](https://github.com/FarizzDev/Godux/issues).
+
+When filing an issue, please include as much detail as possible:
+- A clear and descriptive title.
+- Steps to reproduce the bug.
+- Any relevant logs or error messages.
+- Your operating system and environment.
+
+This will help us resolve the issue much faster.
+
 ## 📜 License
 
 This project is licensed under the [MIT License](LICENSE).
