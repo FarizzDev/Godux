@@ -1,11 +1,4 @@
 #!/bin/bash
-#
-# Godux - Godot Universal eXport
-# Copyright (c) 2025 FarizzDev
-#
-# This project is licensed under the MIT License.
-# See the LICENSE file in the Godux GitHub repository for full license information.
-#
 
 # Cleanup function to remove secrets
 endProgram() {
@@ -45,10 +38,20 @@ WINDOWS="\e[38;2;0;120;215mWindows Desktop\e[0m"
 LINUX="\e[38;2;233;84;32mLinux/X11\e[0m"
 ALL="\e[38;2;255;255;255mAll\e[0m"
 
-# Header and Credits
-echo -e "\e[38;2;72;118;255m=========================================\e[0m"
-echo -e "\e[38;2;255;255;0m Godot Export Automation Tool \e[0m"
-echo -e "\e[38;2;72;118;255m=========================================\e[0m"
+# Header
+echo -e "\e[38;2;72;118;255m"
+cat << "EOF"
+           ____  ___  ____  _   ___  __
+          / ___|/ _ \|  _ \| | | \ \/ /
+         | |  _| | | | | | | | | |\  /
+         | |_| | |_| | |_| | |_| |/  \
+          \____|\___/|____/ \___//_/\_\
+EOF
+echo -e "\e[0m"
+echo -e "             \e[38;2;255;255;255mGodot Universal eXport\e[0m"
+echo ""
+echo -e "\e[38;2;255;255;0m Export Godot Projects From Anywhere, To Anywhere.\e[0m"
+echo -e "\e[38;2;72;118;255m====================================================\e[0m"
 
 # Dependency installation
 install_dependencies() {
@@ -67,12 +70,12 @@ install_dependencies() {
     return
   fi
 
-  echo "The following dependencies are missing: ${missing_deps[*]}"
+  echo -e "\e[1;33m[WARNING]\e[0m The following dependencies are missing: ${missing_deps[*]}"
   read -p "Do you want to try and install them? (Y/n): " confirm_install
   confirm_install=${confirm_install,,}
   confirm_install=${confirm_install:-"y"}
   if [[ ! "$confirm_install" =~ ^y(e?s)?$ ]]; then
-      echo "Please install the missing dependencies manually and rerun the script."
+      echo -e "\e[1;34m[INFO]\e[0m Please install the missing dependencies manually and rerun the script."
       exit 1
   fi
 
@@ -83,23 +86,23 @@ install_dependencies() {
   fi
 
   if command -v apt-get &>/dev/null; then
-    echo "Attempting to install using 'apt'..."
+    echo -e "\e[1;34m[INFO]\e[0m Attempting to install using 'apt'..."
     $SUDO apt-get update
     $SUDO apt-get install -y git gh fzf bc jq
   elif command -v brew &>/dev/null; then
-    echo "Attempting to install using 'brew'..."
+    echo -e "\e[1;34m[INFO]\e[0m Attempting to install using 'brew'..."
     brew install git gh fzf bc jq
   elif command -v pacman &>/dev/null; then
-    echo "Attempting to install using 'pacman'..."
+    echo -e "\e[1;34m[INFO]\e[0m Attempting to install using 'pacman'..."
     $SUDO pacman -S --noconfirm git github-cli fzf bc jq
   elif command -v dnf &>/dev/null; then
-    echo "Attempting to install using 'dnf'..."
+    echo -e "\e[1;34m[INFO]\e[0m Attempting to install using 'dnf'..."
     $SUDO dnf install -y git gh fzf bc jq
   elif command -v pkg &>/dev/null; then
-    echo "Attempting to install using 'pkg'..."
+    echo -e "\e[1;34m[INFO]\e[0m Attempting to install using 'pkg'..."
     pkg install -y git gh fzf bc jq
   else
-    echo "Could not detect a supported package manager (apt, brew, pacman, dnf, pkg)."
+    echo -e "\e[1;31m[ERROR]\e[0m Could not detect a supported package manager (apt, brew, pacman, dnf, pkg)."
     echo "Please install the missing dependencies manually: ${missing_deps[*]}"
     exit 1
   fi
@@ -107,7 +110,7 @@ install_dependencies() {
   # Verify installation
   for cmd in git gh fzf bc jq; do
     if ! command -v "$cmd" &>/dev/null; then
-      echo "Failed to install '$cmd'. Please install it manually and rerun the script."
+      echo -e "\e[1;31m[ERROR]\e[0m Failed to install '$cmd'. Please install it manually and rerun the script."
       exit 1
     fi
   done
@@ -121,17 +124,17 @@ install_dependencies
 
 # Check for workflow file, download if it doesn't exist
 if [[ ! -e ".github/workflows/export.yml" ]]; then
-  echo "Workflow file not found. Downloading from Gist..."
+  echo -e "\e[1;33m[WARNING]\e[0m Workflow file not found. Downloading from Gist..."
   mkdir -p .github/workflows
   if curl -L "https://gist.githubusercontent.com/FarizzDev/0b4f5464adc00d3db3651960541dd647/raw/" -o .github/workflows/export.yml; then
     echo "Workflow downloaded successfully."
   else
-    echo "Failed to download workflow file. Please check your internet connection."
+    echo -e "\e[1;31m[ERROR]\e[0m Failed to download workflow file. Please check your internet connection."
     exit 1
   fi
 fi
 if [[ ! -e "export_presets.cfg" ]]; then
-  printf "\nCan't find export_presets.cfg. Exiting.\n"
+  printf "\n\e[1;31m[ERROR]\e[0m Can't find export_presets.cfg. Exiting.\n"
   exit 1
 fi
 
@@ -146,16 +149,16 @@ if [ -z $(git config --get-all user.email) ]; then
 fi
 # Authenticate with GitHub
 if ! gh auth status &>/dev/null; then
-  echo "GitHub CLI not authenticated. Please run 'gh auth login'."
-  exit 1
+  echo -e "\e[1;34m[INFO]\e[0m GitHub CLI not authenticated."
+  gh auth login
 fi
 
 GITHUB_USERNAME=$(gh api user --jq .login)
 if [[ -z "$GITHUB_USERNAME" ]]; then
-  echo "Failed to get GitHub username. Please check your authentication."
+  echo -e "\e[1;31m[ERROR]\e[0m Failed to get GitHub username. Please check your authentication."
   exit 1
 else
-  echo "Authenticated as $GITHUB_USERNAME"
+  echo -e "\e[1;34m[INFO]\e[0m Authenticated as $GITHUB_USERNAME"
 fi
 
 CWD=$(readlink -f .)
@@ -227,14 +230,14 @@ platform_raw=$(printf "%b\n" "${options[@]}" | fzf --ansi --prompt="Select a pla
 platform=$(echo "$platform_raw" | sed 's/\x1b\\[[0-9;]*m//g')
 
 if [ -z "$platform" ]; then
-  echo "No platform selected. Exiting."
+  echo -e "\e[1;31m[ERROR]\e[0m No platform selected. Exiting."
   exit 1
 fi
 
 # Function to validate URL
 validate_url() {
   if [[ -n "$1" && ! "$1" =~ ^https?:// ]]; then
-    echo "Error: Invalid URL format for $2. It must start with http:// or https://"
+    echo -e "\e[1;31m[ERROR]\e[0m Invalid URL format for $2. It must start with http:// or https://"
     exit 1
   fi
 }
