@@ -251,8 +251,8 @@ read -p "Enter Templates link (default Godot v3.6-stable): " templates_link
 validate_url "$templates_link" "Templates link"
 
 # Debug and Cache input
+echo -e "\n\\e[90m(Note: For new Android keys, this is also used as the certificate's CN. If using an existing key, it's only for filenames.)\\e[0m"
 read -p "Enter a base name for output files (e.g., MyGame): " dname
-echo -e "\\e[90m(Note: For new Android keys, this is also used as the certificate's CN. If using an existing key, it's only for filenames.)\\e[0m"
 read -p "Enable debug? (y/N): " debug
 debug=${debug,,}  # Convert to lowercase
 debug=${debug:-"n"}
