@@ -177,13 +177,41 @@ else
   REPO_NAME=$(basename -s .git $(git remote get-url origin))
 fi
 
-# Initialize git and push the first commit
+# Check for changes before committing and pushing
 printf "\n"
-echo -e "\e[38;2;61;220;132m# Initializing local repository...\e[0m"
+echo -e "\e[38;2;61;220;132m# Checking for code changes...\e[0m"
 
-git add .
-git commit -m "Export Project"
-git push -u origin main
+# First, check for uncommitted local changes
+if [ -n "$(git status --porcelain)" ]; then
+    echo -e "\e[1;34m[INFO]\e[0m Local changes detected. Committing and pushing..."
+    git add .
+    git commit -m "Export Project"
+    git push -u origin main
+else
+    # If no local changes, check if remote is in sync
+    echo -e "\e[1;33m[WARNING]\e[0m No local changes found. Checking remote repository..."
+    git fetch
+
+    LOCAL=$(git rev-parse HEAD)
+    REMOTE=$(git rev-parse @{u})
+
+    if [ "$LOCAL" == "$REMOTE" ]; then
+        echo "Repository is already up to date. No changes to push."
+        read -p "Do you want to re-run the workflow on the existing code? (y/N): " confirm_rerun
+        confirm_rerun=${confirm_rerun,,}
+        confirm_rerun=${confirm_rerun:-n}
+        if [[ ! "$confirm_rerun" =~ ^y(e?s)?$ ]]; then
+            echo "Aborting."
+            exit 0
+        fi
+    else
+        # This case happens if the local branch is ahead/behind but the working dir is clean.
+        # The safest default action is to let the push happen.
+        echo -e "\e[1;33m[WARNING]\e[0m Local repository is not in sync with remote. Pushing..."
+        git push -u origin main
+    fi
+fi
+
 
 # Run export.yml workflow
 
