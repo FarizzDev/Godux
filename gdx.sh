@@ -1,4 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# MIT License (see LICENSE)
+# Copyright (c) 2025 FarizzDev
+
+set -euo pipefail
 
 # Cleanup function to remove secrets
 endProgram() {
