@@ -65,7 +65,7 @@ jobs:
           fi
 
           # Determine if any Android build is happening
-          if [ "$PRESET_NAME" = "All" ]; then
+          if [ "$PRESET_NAME" = $'[ Export All Preset ]\u2063' ]; then
             ISANDROID=$(grep -q 'platform="Android"' export_presets.cfg && echo "true")
           else
             # Check if the selected preset is an Android preset
@@ -169,7 +169,7 @@ jobs:
             if [[ "$format" == "1" ]]; then echo "aab"; else echo "apk"; fi
           }
 
-          if [ "$PRESET_NAME" = "All" ]; then
+          if [ "$PRESET_NAME" = $'[ Export All Preset ]\u2063' ]; then
             presets=$(awk '
               BEGIN { FS = "[[:space:]]*=[[:space:]]*" }
               /^\[preset\./ { if (n&&p) print n"|"p; n=""; p="" }

@@ -41,7 +41,7 @@ MAC_OSX="\e[38;2;176;179;184m"
 UWP="\e[38;2;0;188;242m"
 WINDOWS="\e[38;2;0;120;215m"
 LINUX="\e[38;2;233;84;32m"
-ALL="\e[38;2;255;255;255mAll"
+ALL=$'\e[38;2;255;255;255m[ Export All Preset ]\u2063'
 
 # Header
 echo -e "\e[38;2;72;118;255m"
@@ -254,7 +254,7 @@ while IFS='|' read -r name platform_type; do
 done <<<"$presets_with_platforms"
 
 presetname_raw=$(printf "%b\n" "${options[@]}" | fzf --ansi --no-sort --prompt="Select a platform: ")
-preset_name=$(echo "$presetname_raw" | sed -r 's/\x1B\[[0-9;]*[JKmsu]//g')
+preset_name=$(echo "$presetname_raw" | sed -r 's/\x1B\[[0-9;:]*[mK]//g')
 platform=$(awk -v ref="$preset_name" '
   /^\[preset\./ { n=""; p="" }
   /^name=/      { n=$0; gsub(/.*="/,"",n); gsub(/".*/,"",n) }
@@ -297,7 +297,7 @@ cache=${cache:-"y"}
 cache=$([[ "$cache" =~ ^y(e?s)?$ ]] && echo true || echo false)
 
 # Android requirements
-if [[ "$platform" == "Android" || "$preset_name" == "All" ]]; then
+if [[ "$platform" == "Android" || "$preset_name" == $'[ Export All Preset ]\u2063' ]]; then
   ISANDROID=$(awk -F= '
     BEGIN { IGNORECASE=1 }
     /^\[preset\.[0-9]+\]$/ { in_preset=1; next }
