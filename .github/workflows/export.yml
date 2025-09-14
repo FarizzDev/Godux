@@ -11,20 +11,10 @@ on:
         required: true
         default: "https://github.com/godotengine/godot/releases/download/3.6-stable/Godot_v3.6-stable_export_templates.tpz"
         description: "Enter Export Templates link:"
-      platform:
+      preset_name:
         required: true
         default: "Android"
         description: "Enter platform:"
-        type: choice
-        options:
-          - "Android"
-          - "iOS"
-          - "HTML5"
-          - "Mac OSX"
-          - "UWP"
-          - "Windows Desktop"
-          - "Linux/X11"
-          - "All"
       debug:
         description: "Debug version"
         type: boolean
@@ -54,7 +44,7 @@ jobs:
     env:
       GODOT_LINK: ${{ inputs.godot_link }}
       TEMPLATES_LINK: ${{ inputs.templates_link }}
-      PLATFORM: ${{ inputs.platform }}
+      PRESET_NAME: ${{ inputs.preset_name }}
       KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
       KEYSTORE_USER: ${{ secrets.KEYSTORE_USER }}
       DEBUG: ${{ inputs.debug }}
@@ -67,30 +57,30 @@ jobs:
       - name: 🛒 Checkout repository
         uses: actions/checkout@v3
 
-      - name: ⚙️ Preapare
+      - name: ⚙️ Prepare
         run: |
           if [ ! -f export_presets.cfg ]; then
             echo "Error: File export_presets.cfg not found."
             exit 1
           fi
 
-          if [ "$PLATFORM" = "All" ]; then
-            ISANDROID=$(awk -F= '
-              BEGIN { IGNORECASE=1 }
-              /^\[preset\.[0-9]+\]$/ { in_preset=1; next }
-              /^\[/ && $0 !~ /^\[preset\.[0-9]+\]$/ { in_preset=0 }
-              in_preset && /platform/ && $2 ~ /Android/ { print "true"; exit }
-            ' export_presets.cfg)
+          # Determine if any Android build is happening
+          if [ "$PRESET_NAME" = "All" ]; then
+            ISANDROID=$(grep -q 'platform="Android"' export_presets.cfg && echo "true")
           else
-            ISANDROID=$(awk -F= -v target="$PLATFORM" '
-              BEGIN { IGNORECASE=1 }
-              /^\[preset\.[0-9]+\]$/ { in_preset=1; found_name=0; next }
-              /^\[/ && $0 !~ /^\[preset\.[0-9]+\]$/ { in_preset=0 }
-
-              in_preset && $1 ~ /name/ && $2 ~ "\"" target "\"" { found_name=1 }
-              in_preset && found_name && $1 ~ /platform/ && $2 ~ /Android/ {
-                print "true"; exit
+            # Check if the selected preset is an Android preset
+            ISANDROID=$(awk -v preset_name="$PRESET_NAME" '
+              BEGIN { FS = "[[:space:]]*=[[:space:]]*"; in_preset=0; is_android=0 }
+              /^\[preset\./ { in_preset=0 }
+              /^name[[:space:]]*=/ {
+                n=$2; gsub(/"/, "", n)
+                if (n == preset_name) in_preset=1
               }
+              in_preset && /^platform[[:space:]]*=/ {
+                p=$2; gsub(/"/, "", p)
+                if (p == "Android") { is_android=1 }
+              }
+              END { if (is_android) print "true" }
             ' export_presets.cfg)
           fi
 
@@ -123,78 +113,68 @@ jobs:
           mv ~/godot-templates/templates/* ~/.local/share/godot/templates/${{ env.VERSION }}/
           rm -rf ~/godot-templates
 
-      - name: 📱 Set up JDK (Only for Android)
+      - name: ☕ Setup JDK (Only for Android)
         if: env.ISANDROID == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: "17"
 
-      - name: 📱 Set up Android SDK (Only for Android)
+      - name: 📱 Setup Android SDK (Only for Android)
         if: env.ISANDROID == 'true'
         uses: android-actions/setup-android@v3
 
       - name: 📝 Get Keystore Paths
         if: env.ISANDROID == 'true'
         run: |
-          DEBUG_KEYSTORE_PATH=$(awk -F'=' '/keystore\/debug=/{gsub(/"/, "", $2); gsub(/res:\/\//, "", $2); print $2}' export_presets.cfg | head -n 1)
-          RELEASE_KEYSTORE_PATH=$(awk -F'=' '/keystore\/release=/{gsub(/"/, "", $2); gsub(/res:\/\//, "", $2); print $2}' export_presets.cfg | head -n 1)
+          DEBUG_KEYSTORE_PATH=$(awk -F'=' '/keystore/debug=/{gsub(/"/, "", $2); gsub(/res:\/\//, "", $2); print $2}' export_presets.cfg | head -n 1)
+          RELEASE_KEYSTORE_PATH=$(awk -F'=' '/keystore/release=/{gsub(/"/, "", $2); gsub(/res:\/\//, "", $2); print $2}' export_presets.cfg | head -n 1)
           echo "DEBUG_KEYSTORE_PATH=${DEBUG_KEYSTORE_PATH:-debug.keystore}" >> $GITHUB_ENV
           echo "RELEASE_KEYSTORE_PATH=${RELEASE_KEYSTORE_PATH:-release.keystore}" >> $GITHUB_ENV
-          echo "Debug Keystore Path: ${DEBUG_KEYSTORE_PATH:-debug.keystore}"
-          echo "Release Keystore Path: ${RELEASE_KEYSTORE_PATH:-release.keystore}"
 
       - name: 🔑 Setup Keystore (Only for Android)
         if: env.ISANDROID == 'true'
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
         run: |
-          # This step uses the paths discovered in the 'Get Keystore Paths' step
-          # If an existing keystore was provided, decode it to the release path
           if [ -n "$RELEASE_KEYSTORE_BASE64" ]; then
-            echo "Found existing keystore. Decoding and placing at ${{ env.RELEASE_KEYSTORE_PATH }}"
+            echo "Decoding and placing existing keystore at ${{ env.RELEASE_KEYSTORE_PATH }}"
             mkdir -p "$(dirname "${{ env.RELEASE_KEYSTORE_PATH }}")"
             echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "${{ env.RELEASE_KEYSTORE_PATH }}"
-
-          # Otherwise, generate a new one at the release path
-          else
-            echo "No existing keystore found. Generating a new one at ${{ env.RELEASE_KEYSTORE_PATH }}"
+          elif [ "${{ env.DEBUG }}" = "false" ]; then
+            echo "Generating new release keystore at ${{ env.RELEASE_KEYSTORE_PATH }}"
             mkdir -p "$(dirname "${{ env.RELEASE_KEYSTORE_PATH }}")"
-            keytool -genkey -v \
-              -keystore "${{ env.RELEASE_KEYSTORE_PATH }}" \
-              -alias "${{ env.KEYSTORE_USER }}" \
-              -storepass "${{ env.KEYSTORE_PASS }}" -keypass "${{ env.KEYSTORE_PASS }}" \
-              -dname "CN=${{ env.DNAME }},O=${{ env.ORG }},C=${{ env.COUNTRY }}" \
-              -keyalg RSA -keysize 2048 -validity 10000
+            keytool -genkey -v -keystore "${{ env.RELEASE_KEYSTORE_PATH }}" -alias "${{ env.KEYSTORE_USER }}" -storepass "${{ env.KEYSTORE_PASS }}" -keypass "${{ env.KEYSTORE_PASS }}" -dname "CN=${{ env.DNAME }},O=${{ env.ORG }},C=${{ env.COUNTRY }}" -keyalg RSA -keysize 2048 -validity 10000
           fi
-
-          # Always generate a fresh debug keystore at its path
           echo "Generating debug keystore at ${{ env.DEBUG_KEYSTORE_PATH }}"
           mkdir -p "$(dirname "${{ env.DEBUG_KEYSTORE_PATH }}")"
-          keytool -genkey -v \
-            -keystore "${{ env.DEBUG_KEYSTORE_PATH }}" \
-            -alias androiddebugkey \
-            -storepass android -keypass android \
-            -dname "CN=${{ env.DNAME }} (Debug),O=Android,C=US" \
-            -keyalg RSA -keysize 2048 -validity 9000
+          keytool -genkey -v -keystore "${{ env.DEBUG_KEYSTORE_PATH }}" -alias androiddebugkey -storepass android -keypass android -dname "CN=${{ env.DNAME }} (Debug),O=Android,C=US" -keyalg RSA -keysize 2048 -validity 9000
 
       - name: 🛠 Export
         run: |
           mkdir -p export
+          EXPORT_FLAG=$([[ "${{ env.DEBUG }}" == "true" ]] && echo "--export-debug" || echo "--export")
 
-          # Set export flag
-          if [ ${{ env.DEBUG }} = "true" ]; then
-            EXPORT_FLAG="--export-debug"
-          else
-            EXPORT_FLAG="--export"
-          fi
+          # Function to determine Android extension based on the preset's content
+          get_android_ext() {
+            local preset_name="$1"
+            local format=$(awk -v preset_name="$preset_name" '
+              BEGIN { FS = "[[:space:]]*=[[:space:]]*"; in_preset=0; format="0" }
+              /^\[preset\./ { in_preset=0 }
+              /name/ && $2 == preset_name { in_preset=1 }
+              in_preset && /custom_build\/export_format/ { format=$2; exit }
+              END { print format }
+            ' export_presets.cfg)
 
-          if [ "$PLATFORM" = "All" ]; then
+            if [[ "$format" == "1" ]]; then echo "aab"; else echo "apk"; fi
+          }
+
+          if [ "$PRESET_NAME" = "All" ]; then
             presets=$(awk '
               BEGIN { FS = "[[:space:]]*=[[:space:]]*" }
               /^\[preset\./ { if (n&&p) print n"|"p; n=""; p="" }
-              /^name/ { n=$2; gsub(/"/,"",n) }
-              /^platform/ { p=$2; gsub(/"/,"",p) }
+              /^name/ { n=$2; gsub(/"/, "",n) }
+              /^platform/ { p=$2; gsub(/"/, "",p) }
               END { if (n&&p) print n"|"p }
             ' export_presets.cfg)
 
@@ -203,35 +183,46 @@ jobs:
               subfolder=$(echo "$platform_type" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' | sed 's|/x11||')
               mkdir -p "export/$subfolder"
               
+              OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}"
               case "$platform_type" in
-                "Android") OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}.apk" ;;
-                "Windows Desktop") OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}.exe" ;;
-                "Linux/X11") OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}" ;;
-                "HTML5") OUTPUT_PATH="export/$subfolder/index.html" ;;
-                "Mac OSX") OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}.zip" ;;
-                *) OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}" ;;
+                "Android") EXT=$(get_android_ext "$preset_name"); OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}.$EXT" ;; 
+                "Windows Desktop") OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}.exe" ;; 
+                "Linux/X11") OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}" ;; 
+                "HTML5") OUTPUT_PATH="export/$subfolder/index.html" ;; 
+                "Mac OSX") OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}.zip" ;; 
               esac
               
-              godot "$EXPORT_FLAG" "$preset_name" "$OUTPUT_PATH"
+              godot $EXPORT_FLAG "$preset_name" "$OUTPUT_PATH"
             done <<< "$presets"
 
           else
-            subfolder=$(echo "$PLATFORM" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' | sed 's|/x11||')
+            PLATFORM=$(awk -v ref="$PRESET_NAME" '
+              /^\[preset\./ { n=""; p="" }
+              /^name=/      { n=$0; gsub(/.*="/,"",n); gsub(/".*/,"",n) }
+              /^platform=/  { p=$0; gsub(/.*="/,"",p); gsub(/".*/,"",p) }
+              n==ref && p { print p; exit }
+            ' export_presets.cfg)
+            subfolder=$(echo "$PRESET_NAME" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' | sed 's|/x11||' | sed 's|android2|android|') # Normalize subfolder
             mkdir -p "export/$subfolder"
             
-            case "$PLATFORM" in
-              "Android") OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}.apk" ;;
-              "Windows Desktop") OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}.exe" ;;
-              "Linux/X11") OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}" ;;
-              "HTML5") OUTPUT_PATH="export/$subfolder/index.html" ;;
-              "Mac OSX") OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}.zip" ;;
-              *) OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}" ;;
-            esac
+            OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}"
+            if [[ "$PLATFORM" == "Android"* ]]; then
+              EXT=$(get_android_ext "$PLATFORM")
+              OUTPUT_PATH="export/android/${{ env.DNAME }}.$EXT"
+            elif [ "$PLATFORM" = "Windows Desktop" ]; then
+              OUTPUT_PATH="export/windows/${{ env.DNAME }}.exe"
+            elif [ "$PLATFORM" = "Linux/X11" ]; then
+              OUTPUT_PATH="export/linux/${{ env.DNAME }}"
+            elif [ "$PLATFORM" = "HTML5" ]; then
+              OUTPUT_PATH="export/html5/index.html"
+            elif [ "$PLATFORM" = "Mac OSX" ]; then
+              OUTPUT_PATH="export/macosx/${{ env.DNAME }}.zip"
+            fi
             
-            godot "$EXPORT_FLAG" "$PLATFORM" "$OUTPUT_PATH"
+            godot $EXPORT_FLAG "$PRESET_NAME" "$OUTPUT_PATH"
           fi
 
-          if [[ -f "${{ env.RELEASE_KEYSTORE_PATH }}" && "$ISANDROID" == "true" ]]; then
+          if [[ "$ISANDROID" == "true" && "${{ env.DEBUG }}" == "false" ]]; then
             cp "${{ env.RELEASE_KEYSTORE_PATH }}" export/android/
           fi
           zip -r -7 "${{ env.DNAME }}.zip" export/

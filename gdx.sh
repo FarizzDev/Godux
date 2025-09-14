@@ -2,45 +2,46 @@
 
 # Cleanup function to remove secrets
 endProgram() {
-    trap - INT TERM EXIT
-    printf "\nCleaning up...\n"
-    if [[ -n "$user" ]]; then
-        echo "Removing repository secrets..."
-        gh secret delete USER &>/dev/null
-        gh secret delete KEYPASS &>/dev/null
-    fi
-    unset GITHUB_TOKEN
-    unset keypass
+  exitcode=$?
+  trap - INT TERM EXIT
+  printf "\nCleaning up...\n"
+  if [[ -n "$user" ]]; then
+    echo "Removing repository secrets..."
+    gh secret delete KEYSTORE_USER &>/dev/null
+    gh secret delete KEYSTORE_PASS &>/dev/null
+  fi
+  unset GITHUB_TOKEN
+  unset keypass
 
-    echo -e "\e[38;2;61;220;132mThank you for using this tool!"
+  echo -e "\e[38;2;61;220;132mThank you for using this tool!"
 
-    # Footer and Credits
-    echo -e "\n\e[38;2;255;165;0m=========================================\e[0m"
-    echo -e "\e[38;2;255;255;0m Author:\e[0m"
-    echo -e "  GitHub: https://github.com/FarizzDev"
-    echo -e "  YouTube: https://youtube.com/ziraFCode"
-    echo -e "  WhatsApp Channel: https://whatsapp.com/channel/0029Vb6PKq6JkK7Bv8lYwK2I"
-    echo -e "\e[38;2;255;165;0m=========================================\e[0m"
+  # Footer and Credits
+  echo -e "\n\e[38;2;255;165;0m=========================================\e[0m"
+  echo -e "\e[38;2;255;255;0m Author:\e[0m"
+  echo -e "  GitHub: https://github.com/FarizzDev"
+  echo -e "  YouTube: https://youtube.com/ziraFCode"
+  echo -e "  WhatsApp Channel: https://whatsapp.com/channel/0029Vb6PKq6JkK7Bv8lYwK2I"
+  echo -e "\e[38;2;255;165;0m=========================================\e[0m"
 
-    exit
+  exit $exitcode
 }
 
 # Trap interrupts and exits
 trap endProgram INT TERM EXIT
 
 # Platform colors
-ANDROID="\e[38;2;61;220;132mAndroid\e[0m"
-IOS="\e[38;2;163;170;174miOS\e[0m"
-HTML5="\e[38;2;228;77;38mHTML5\e[0m"
-MAC_OSX="\e[38;2;176;179;184mMac OSX\e[0m"
-UWP="\e[38;2;0;188;242mUWP\e[0m"
-WINDOWS="\e[38;2;0;120;215mWindows Desktop\e[0m"
-LINUX="\e[38;2;233;84;32mLinux/X11\e[0m"
-ALL="\e[38;2;255;255;255mAll\e[0m"
+ANDROID="\e[38;2;61;220;132m"
+IOS="\e[38;2;163;170;174m"
+HTML5="\e[38;2;228;77;38m"
+MAC_OSX="\e[38;2;176;179;184m"
+UWP="\e[38;2;0;188;242m"
+WINDOWS="\e[38;2;0;120;215m"
+LINUX="\e[38;2;233;84;32m"
+ALL="\e[38;2;255;255;255mAll"
 
 # Header
 echo -e "\e[38;2;72;118;255m"
-cat << "EOF"
+cat <<"EOF"
            ____  ___  ____  _   ___  __
           / ___|/ _ \|  _ \| | | \ \/ /
          | |  _| | | | | | | | | |\  /
@@ -75,8 +76,8 @@ install_dependencies() {
   confirm_install=${confirm_install,,}
   confirm_install=${confirm_install:-"y"}
   if [[ ! "$confirm_install" =~ ^y(e?s)?$ ]]; then
-      echo -e "\e[1;34m[INFO]\e[0m Please install the missing dependencies manually and rerun the script."
-      exit 1
+    echo -e "\e[1;34m[INFO]\e[0m Please install the missing dependencies manually and rerun the script."
+    exit 1
   fi
 
   # Determine package manager
@@ -121,7 +122,6 @@ install_dependencies() {
 printf "\n"
 install_dependencies
 
-
 # Check for workflow file, download if it doesn't exist
 if [[ ! -e ".github/workflows/export.yml" ]]; then
   echo -e "\e[1;33m[WARNING]\e[0m Workflow file not found. Downloading from Gist..."
@@ -139,13 +139,13 @@ if [[ ! -e "export_presets.cfg" ]]; then
 fi
 
 printf "\n"
-if [ -z $(git config --get-all user.name) ]; then
+if [ -z "$(git config --get-all user.name)" ]; then
   read -p "Git username: " name
-  git config --global user.name $name
+  git config --global user.name "$name"
 fi
-if [ -z $(git config --get-all user.email) ]; then
+if [ -z "$(git config --get-all user.email)" ]; then
   read -p "Git email: " email
-  git config --global user.email $email
+  git config --global user.email "$email"
 fi
 # Authenticate with GitHub
 if ! gh auth status &>/dev/null; then
@@ -153,7 +153,7 @@ if ! gh auth status &>/dev/null; then
   gh auth login
 fi
 
-GITHUB_USERNAME=$(gh api user --jq .login)
+GITHUB_USERNAME="$(gh api user --jq .login)"
 if [[ -z "$GITHUB_USERNAME" ]]; then
   echo -e "\e[1;31m[ERROR]\e[0m Failed to get GitHub username. Please check your authentication."
   exit 1
@@ -163,7 +163,7 @@ fi
 
 CWD=$(readlink -f .)
 if ! git config --get-all safe.directory | grep -q "^$CWD"; then
-  git config --global --add safe.directory $CWD
+  git config --global --add safe.directory "$CWD"
 fi
 if [ ! -d "$CWD/.git" ]; then
   read -p "Enter the name for the new repository: " REPO_NAME
@@ -174,7 +174,7 @@ if [ ! -d "$CWD/.git" ]; then
   git branch -M main
   git remote add origin "https://github.com/$GITHUB_USERNAME/$REPO_NAME.git"
 else
-  REPO_NAME=$(basename -s .git $(git remote get-url origin))
+  REPO_NAME=$(basename -s .git "$(git remote get-url origin)")
 fi
 
 # Check for changes before committing and pushing
@@ -183,82 +183,82 @@ echo -e "\e[38;2;61;220;132m# Checking for code changes...\e[0m"
 
 # First, check for uncommitted local changes
 if [ -n "$(git status --porcelain)" ]; then
-    echo -e "\e[1;34m[INFO]\e[0m Local changes detected. Committing and pushing..."
-    git add .
-    git commit -m "Export Project"
-    git push -u origin main
+  echo -e "\e[1;34m[INFO]\e[0m Local changes detected. Committing and pushing..."
+  git add .
+  git commit -m "Export Project"
+  git push -u origin main
 else
-    # If no local changes, check if remote is in sync
-    echo -e "\e[1;33m[WARNING]\e[0m No local changes found. Checking remote repository..."
-    git fetch
+  # If no local changes, check if remote is in sync
+  echo -e "\e[1;33m[WARNING]\e[0m No local changes found. Checking remote repository..."
+  git fetch
 
-    LOCAL=$(git rev-parse HEAD)
-    REMOTE=$(git rev-parse @{u})
+  LOCAL=$(git rev-parse HEAD)
+  REMOTE=$(git rev-parse @{u})
 
-    if [ "$LOCAL" == "$REMOTE" ]; then
-        echo "Repository is already up to date. No changes to push."
-        read -p "Do you want to re-run the workflow on the existing code? (y/N): " confirm_rerun
-        confirm_rerun=${confirm_rerun,,}
-        confirm_rerun=${confirm_rerun:-n}
-        if [[ ! "$confirm_rerun" =~ ^y(e?s)?$ ]]; then
-            echo "Aborting."
-            exit 0
-        fi
-    else
-        # This case happens if the local branch is ahead/behind but the working dir is clean.
-        # The safest default action is to let the push happen.
-        echo -e "\e[1;33m[WARNING]\e[0m Local repository is not in sync with remote. Pushing..."
-        git push -u origin main
+  if [ "$LOCAL" == "$REMOTE" ]; then
+    echo "Repository is already up to date. No changes to push."
+    read -p "Do you want to re-run the workflow on the existing code? (y/N): " confirm_rerun
+    confirm_rerun=${confirm_rerun,,}
+    confirm_rerun=${confirm_rerun:-n}
+    if [[ ! "$confirm_rerun" =~ ^y(e?s)?$ ]]; then
+      echo "Aborting."
+      exit 0
     fi
+  else
+    # This case happens if the local branch is ahead/behind but the working dir is clean.
+    echo -e "\e[1;33m[WARNING]\e[0m Local repository is not in sync with remote. Pushing..."
+    git push -u origin main
+  fi
 fi
-
 
 # Run export.yml workflow
 
-# Get platforms from export_presets.cfg
-# A simple, robust method to parse names and platforms
-platforms=$(grep -oP '(?<=^platform=")[^"]*' export_presets.cfg)
-names=$(grep -oP '(?<=^name=")[^"]*' export_presets.cfg)
-
-# Combine the platforms and names, separated by a pipe
-# Note: Using process substitution <() requires bash
-parsed_platforms=$(paste -d'|' <(echo "$platforms") <(echo "$names"))
+# Get all preset names and their platforms
+presets_with_platforms=$(awk '
+  BEGIN { FS = "[[:space:]]*=[[:space:]]*" }
+  /^\[preset\./ { if (n&&p) print n"|"p; n=""; p="" }
+  /^name/ { n=$2; gsub(/"/,"",n) }
+  /^platform/ { p=$2; gsub(/"/,"",p) }
+  END { if (n&&p) print n"|"p }
+' export_presets.cfg)
 
 options=()
-SEP=$'\x1F'
-# Use a simple while loop with a pipe delimiter to read the pairs
-while IFS='|' read -r key name; do
-  # Skip any empty lines that might result from parsing
-  if [ -z "$key" ] || [ -z "$name" ]; then
+options+=("$ALL")
+
+while IFS='|' read -r name platform_type; do
+  if [ -z "$name" ] || [ -z "$platform_type" ]; then
     continue
   fi
 
-  case "$key" in
-    Android)          color_var="$ANDROID" ;;
-    iOS)              color_var="$IOS" ;;
-    HTML5)            color_var="$HTML5" ;;
-    "Mac OSX" | Mac)  color_var="$MAC_OSX" ;;
-    UWP)              color_var="$UWP" ;;
-    "Windows Desktop" | Windows) color_var="$WINDOWS" ;;
-    "Linux/X11")      color_var="$LINUX" ;;
-    *)                color_var="" ;; # No color for unknown platforms
+  case "$platform_type" in
+  Android) color_prefix=$ANDROID ;;
+  iOS) color_prefix=$IOS ;;
+  HTML5) color_prefix=$HTML5 ;;
+  "Mac OSX") color_prefix=$MAC_OSX ;;
+  UWP) color_prefix=$UWP ;;
+  "Windows Desktop") color_prefix=$WINDOWS ;;
+  "Linux/X11") color_prefix=$LINUX ;;
+  *) color_prefix="" ;;
   esac
+  color_suffix="\e[0m"
 
-  if [ -n "$color_var" ]; then
-    # Apply color to the display name by replacing the placeholder text in the color variable
-    options+=("$(echo -e "$color_var" | sed "s${SEP}m.*m${SEP}m$name${SEP}g")")
+  if [ -n "$color_prefix" ]; then
+    options+=("$(echo -e "${color_prefix}${name}${color_suffix}")")
   else
-    # Fallback for unknown platforms, no color
     options+=("$name")
   fi
-done <<< "$parsed_platforms"
+done <<<"$presets_with_platforms"
 
-options+=("$ALL")
+presetname_raw=$(printf "%b\n" "${options[@]}" | fzf --ansi --no-sort --prompt="Select a platform: ")
+preset_name=$(echo "$presetname_raw" | sed -r 's/\x1B\[[0-9;]*[JKmsu]//g')
+platform=$(awk -v ref="$preset_name" '
+  /^\[preset\./ { n=""; p="" }
+  /^name=/      { n=$0; gsub(/.*="/,"",n); gsub(/".*/,"",n) }
+  /^platform=/  { p=$0; gsub(/.*="/,"",p); gsub(/".*/,"",p) }
+  n==ref && p { print p; exit }
+' export_presets.cfg)
 
-platform_raw=$(printf "%b\n" "${options[@]}" | fzf --ansi --prompt="Select a platform: ")
-platform=$(echo "$platform_raw" | sed 's/\x1b\\[[0-9;]*m//g')
-
-if [ -z "$platform" ]; then
+if [ -z "$preset_name" ]; then
   echo -e "\e[1;31m[ERROR]\e[0m No platform selected. Exiting."
   exit 1
 fi
@@ -283,16 +283,17 @@ validate_url "$templates_link" "Templates link"
 echo -e "\n\\e[90m(Note: For new Android keys, this is also used as the certificate's CN. If using an existing key, it's only for filenames.)\\e[0m"
 read -p "Enter a base name for output files (e.g., MyGame): " dname
 read -p "Enable debug? (y/N): " debug
-debug=${debug,,}  # Convert to lowercase
+debug=${debug,,} # Convert to lowercase
 debug=${debug:-"n"}
-debug=$( [[ "$debug" =~ ^y(e?s)?$ ]] && echo true || echo false)
+debug=$([[ "$debug" =~ ^y(e?s)?$ ]] && echo true || echo false)
 
 read -p "Enable cache? (Y/n): " cache
 cache=${cache,,}
 cache=${cache:-"y"}
-cache=$( [[ "$cache" =~ ^y(e?s)?$ ]] && echo true || echo false)
+cache=$([[ "$cache" =~ ^y(e?s)?$ ]] && echo true || echo false)
 
-if [[ "$platform" == "Android" || "$platform" == "All" ]]; then
+# Android requirements
+if [[ "$platform" == "Android" || "$preset_name" == "All" ]]; then
   ISANDROID=$(awk -F= '
     BEGIN { IGNORECASE=1 }
     /^\[preset\.[0-9]+\]$/ { in_preset=1; next }
@@ -344,9 +345,8 @@ echo -e "\e[38;2;61;220;132m# Running workflow...\e[0m"
 args=("export.yml")
 
 # Add fields if inputs are present
-for FIELD in godot_link templates_link platform debug cache dname org country
-do
-  VALUE="${!FIELD}"
+for FIELD in godot_link templates_link preset_name debug cache dname org country; do
+  VALUE="${!FIELD-}"
   if [ -n "$VALUE" ]; then
     args+=("-f")
     args+=("$FIELD=$VALUE")
@@ -368,13 +368,11 @@ while true; do
   CURRENT_STEPS=$(gh api repos/$GITHUB_USERNAME/$REPO_NAME/actions/runs/$WORKFLOW_ID/jobs \
     --jq '.jobs[].steps[] | {name: .name, conclusion: .conclusion, status: .status}')
 
-  # Handle cases where no steps are returned
   if [[ -z "$CURRENT_STEPS" ]]; then
     sleep 1
     continue
   fi
 
-  # Process steps without a pipeline to avoid subshell issues
   while IFS= read -r STEP; do
     NAME=$(echo "$STEP" | jq -r '.name // empty')
     STATUS=$(echo "$STEP" | jq -r '.status // empty')
@@ -402,7 +400,7 @@ while true; do
         STEP_STATUSES+=("$STATUS")
       fi
     fi
-  done <<< "$CURRENT_STEPS"
+  done <<<"$CURRENT_STEPS"
 
   for i in "${!DISPLAYED_STEPS[@]}"; do
     NAME="${DISPLAYED_STEPS[i]}"
@@ -422,7 +420,6 @@ while true; do
 
   sleep 0.2
 done
-
 
 # Check if workflow was successful
 CONCLUSION=$(gh run view "$WORKFLOW_ID" --json conclusion -q '.conclusion')
@@ -467,12 +464,9 @@ else
   echo "Workflow failed with status: $CONCLUSION"
   printf "\n"
   if gh run view $WORKFLOW_ID --log-failed | grep -q "export"; then
-      ERROR_MESSAGE=$(gh run view $WORKFLOW_ID --log-failed | grep -Ev 'at:|VisualServer' | sed '1,/##\[endgroup\]/d')
+    ERROR_MESSAGE=$(gh run view $WORKFLOW_ID --log-failed | grep -Ev 'at:|VisualServer' | sed '1,/##\[endgroup\]/d')
   else
     ERROR_MESSAGE=$(gh run view $WORKFLOW_ID --log-failed | sed '1,/##\[endgroup\]/d')
   fi
-    echo $ERROR_MESSAGE
+  echo $ERROR_MESSAGE
 fi
-
-unset GITHUB_TOKEN
-unset keypass
