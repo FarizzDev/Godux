@@ -2,61 +2,132 @@
 # MIT License (see LICENSE)
 # Copyright (c) 2025 FarizzDev
 
-set -euo pipefail
+# Auto-Update
+VERSION="v0.7.0"
+UPSTREAM_REPO="FarizzDev/Godux"
+CHECK_INTERVAL=86400 # 24 hours in seconds
+LAST_CHECK_FILE=~/.godux_last_check
 
-# Cleanup function to remove secrets
-endProgram() {
-  exitcode=$?
-  trap - INT TERM EXIT
-  printf "\nCleaning up...\n"
-  if [[ -n "$user" ]]; then
-    echo "Removing repository secrets..."
-    gh secret delete KEYSTORE_USER &>/dev/null
-    gh secret delete KEYSTORE_PASS &>/dev/null
+checkForUpdates() {
+  if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then return 0; fi
+
+  if [ -f "$LAST_CHECK_FILE" ]; then
+    last_check_time=$(cat "$LAST_CHECK_FILE")
+    if [[ "$last_check_time" =~ ^[0-9]+$ ]]; then
+      current_time=$(date +%s)
+      time_diff=$((current_time - last_check_time))
+      if [ "$time_diff" -lt "$CHECK_INTERVAL" ]; then
+        return
+      fi
+    fi
   fi
-  unset GITHUB_TOKEN
-  unset keypass
 
-  echo -e "\e[38;2;61;220;132mThank you for using this tool!"
+  echo "Checking for updates..."
+  date +%s >"$LAST_CHECK_FILE"
 
-  # Footer and Credits
-  echo -e "\n\e[38;2;255;165;0m=========================================\e[0m"
-  echo -e "\e[38;2;255;255;0m Author:\e[0m"
-  echo -e "  GitHub: https://github.com/FarizzDev"
-  echo -e "  YouTube: https://youtube.com/ziraFCode"
-  echo -e "  WhatsApp Channel: https://whatsapp.com/channel/0029Vb6PKq6JkK7Bv8lYwK2I"
-  echo -e "\e[38;2;255;165;0m=========================================\e[0m"
+  if ! LATEST_VERSION=$(gh api repos/$UPSTREAM_REPO/releases/latest --jq .tag_name 2>/dev/null); then
+    echo -e "\e[1;33m[WARNING]\e[0m Could not fetch releases. Are you offline?"
+    return
+  fi
 
-  exit $exitcode
+  if [ -z "$LATEST_VERSION" ]; then
+    echo -e "\e[1;33m[WARNING]\e[0m No releases found. Skipping update check."
+    return
+  fi
+
+  highest_version=$(printf "%s\n%s" "$VERSION" "$LATEST_VERSION" | sort -V | tail -n1)
+
+  if [ "$highest_version" = "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "$VERSION" ]; then
+    echo -e "\e[1;32m[UPDATE]\e[0m A new version ($LATEST_VERSION) is available. You are on version $VERSION."
+    read -p "Do you want to update now? (Y/n): " confirm_update
+    confirm_update=${confirm_update,,}
+    confirm_update=${confirm_update:-"y"}
+
+    if [[ "$confirm_update" =~ ^y(e?s)?$ ]]; then
+      echo "Updating..."
+      SCRIPT_PATH=$(readlink -f "$0")
+      TEMP_FILE=$(mktemp)
+      TEMP_HASH_FILE=$(mktemp)
+
+      echo "Downloading new version..."
+      if ! gh release download "$LATEST_VERSION" --repo "$UPSTREAM_REPO" --pattern 'gdx.sh' --clobber --output "$TEMP_FILE"; then
+        echo -e "\e[1;31m[ERROR]\e[0m Failed to download the script file."
+        rm -f "$TEMP_FILE" "$TEMP_HASH_FILE"
+        exit 1
+      fi
+
+      echo "Downloading checksum..."
+      if ! gh release download "$LATEST_VERSION" --repo "$UPSTREAM_REPO" --pattern 'gdx.sh.sha256' --clobber --output "$TEMP_HASH_FILE"; then
+        echo -e "\e[1;31m[ERROR]\e[0m Failed to download the checksum file. Cannot verify integrity."
+        rm -f "$TEMP_FILE" "$TEMP_HASH_FILE"
+        exit 1
+      fi
+
+      echo "Verifying file integrity..."
+      REMOTE_HASH=$(cat "$TEMP_HASH_FILE" | awk '{print $1}')
+      LOCAL_HASH=$(sha256sum "$TEMP_FILE" | awk '{print $1}')
+
+      if [ "$REMOTE_HASH" = "$LOCAL_HASH" ]; then
+        echo -e "\e[38;2;61;220;132mChecksum PASSED.\e[0m"
+        mv "$TEMP_FILE" "$SCRIPT_PATH"
+        chmod +x "$SCRIPT_PATH"
+        rm -f "$TEMP_HASH_FILE"
+        echo -e "\e[1;32mUpdate successful! Please run the script again.\e[0m"
+        exit 0
+      else
+        echo -e "\e[1;31m[ERROR] CHECKSUM FAILED!\e[0m The downloaded file may be corrupt. Aborting update."
+        rm -f "$TEMP_FILE" "$TEMP_HASH_FILE"
+        exit 1
+      fi
+    else
+      echo "Update skipped."
+    fi
+  fi
 }
 
-# Trap interrupts and exits
-trap endProgram INT TERM EXIT
+syncWorkflow() {
+  echo "Syncing workflow file to script version ($VERSION)..."
+  WORKFLOW_FILE=".github/workflows/export.yml"
 
-# Platform colors
-ANDROID="\e[38;2;61;220;132m"
-IOS="\e[38;2;163;170;174m"
-HTML5="\e[38;2;228;77;38m"
-MAC_OSX="\e[38;2;176;179;184m"
-UWP="\e[38;2;0;188;242m"
-WINDOWS="\e[38;2;0;120;215m"
-LINUX="\e[38;2;233;84;32m"
-ALL=$'\e[38;2;255;255;255m[ Export All Preset ]\u2063'
+  TEMP_REMOTE_HASH_FILE=$(mktemp)
+  if ! gh release download "$VERSION" --repo "$UPSTREAM_REPO" --pattern 'export.yml.sha256' --clobber --output "$TEMP_REMOTE_HASH_FILE" >/dev/null 2>&1; then
+    echo -e "\e[1;33m[WARNING]\e[0m Could not find 'export.yml.sha256' for version $VERSION. Cannot guarantee workflow integrity."
+    if [[ ! -f "$WORKFLOW_FILE" ]]; then
+      echo -e "\e[1;31m[ERROR]\e[0m And no local workflow file exists. Aborting."
+      exit 1
+    fi
+    return
+  fi
+  REMOTE_HASH=$(cat "$TEMP_REMOTE_HASH_FILE" | awk '{print $1}')
+  rm -f "$TEMP_REMOTE_HASH_FILE"
 
-# Header
-echo -e "\e[38;2;72;118;255m"
-cat <<"EOF"
-           ____  ___  ____  _   ___  __
-          / ___|/ _ \|  _ \| | | \ \/ /
-         | |  _| | | | | | | | | |\  /
-         | |_| | |_| | |_| | |_| |/  \
-          \____|\___/|____/ \___//_/\_\
-EOF
-echo -e "\e[0m"
-echo -e "             \e[38;2;255;255;255mGodot Universal eXport\e[0m"
-echo ""
-echo -e "\e[38;2;255;255;0m Export Godot Projects From Anywhere, To Anywhere.\e[0m"
-echo -e "\e[38;2;72;118;255m====================================================\e[0m"
+  LOCAL_HASH=""
+  if [[ -f "$WORKFLOW_FILE" ]]; then
+    LOCAL_HASH=$(sha256sum "$WORKFLOW_FILE" | awk '{print $1}')
+  fi
+
+  if [ "$LOCAL_HASH" = "$REMOTE_HASH" ]; then
+    return
+  fi
+
+  echo "Local workflow is out of sync or missing. Downloading version for $VERSION..."
+  TEMP_WORKFLOW_FILE=$(mktemp)
+  if ! gh release download "$VERSION" --repo "$UPSTREAM_REPO" --pattern 'export.yml' --clobber --output "$TEMP_WORKFLOW_FILE"; then
+    echo -e "\e[1;31m[ERROR]\e[0m Failed to download workflow file for version $VERSION. Aborting."
+    exit 1
+  fi
+
+  DOWNLOAD_HASH=$(sha256sum "$TEMP_WORKFLOW_FILE" | awk '{print $1}')
+  if [ "$DOWNLOAD_HASH" != "$REMOTE_HASH" ]; then
+    echo -e "\e[1;31m[ERROR] CHECKSUM FAILED!\e[0m The downloaded workflow file is corrupt. Aborting."
+    rm -f "$TEMP_WORKFLOW_FILE"
+    exit 1
+  fi
+
+  echo -e "\e[38;2;61;220;132mWorkflow synced successfully to version $VERSION.\e[0m"
+  mkdir -p .github/workflows
+  mv "$TEMP_WORKFLOW_FILE" "$WORKFLOW_FILE"
+}
 
 # Dependency installation
 install_dependencies() {
@@ -126,17 +197,64 @@ install_dependencies() {
 printf "\n"
 install_dependencies
 
-# Check for workflow file, download if it doesn't exist
-if [[ ! -e ".github/workflows/export.yml" ]]; then
-  echo -e "\e[1;33m[WARNING]\e[0m Workflow file not found. Downloading from Gist..."
-  mkdir -p .github/workflows
-  if curl -L "https://gist.githubusercontent.com/FarizzDev/0b4f5464adc00d3db3651960541dd647/raw/" -o .github/workflows/export.yml; then
-    echo "Workflow downloaded successfully."
-  else
-    echo -e "\e[1;31m[ERROR]\e[0m Failed to download workflow file. Please check your internet connection."
-    exit 1
+set -euo pipefail
+
+# Cleanup function to remove secrets
+endProgram() {
+  exitcode=$?
+  trap - INT TERM EXIT
+  printf "\nCleaning up...\n"
+  if [[ -n "${user:-}" ]]; then
+    echo "Removing repository secrets..."
+    gh secret delete KEYSTORE_USER &>/dev/null
+    gh secret delete KEYSTORE_PASS &>/dev/null
   fi
-fi
+  unset GITHUB_TOKEN
+  unset keypass
+
+  echo -e "\e[38;2;61;220;132mThank you for using this tool!"
+
+  # Footer and Credits
+  echo -e "\n\e[38;2;255;165;0m=========================================\e[0m"
+  echo -e "\e[38;2;255;255;0m Author:\e[0m"
+  echo -e "  GitHub: https://github.com/FarizzDev"
+  echo -e "  YouTube: https://youtube.com/ziraFCode"
+  echo -e "\e[38;2;255;165;0m=========================================\e[0m"
+
+  exit $exitcode
+}
+
+# Trap interrupts and exits
+trap endProgram INT TERM EXIT
+
+checkForUpdates
+syncWorkflow
+
+# Platform colors
+ANDROID="\e[38;2;61;220;132m"
+IOS="\e[38;2;163;170;174m"
+HTML5="\e[38;2;228;77;38m"
+MAC_OSX="\e[38;2;176;179;184m"
+UWP="\e[38;2;0;188;242m"
+WINDOWS="\e[38;2;0;120;215m"
+LINUX="\e[38;2;233;84;32m"
+ALL=$'\e[38;2;255;255;255m[ Export All Preset ]\u2063'
+
+# Header
+echo -e "\e[38;2;72;118;255m"
+cat <<"EOF"
+           ____  ___  ____  _   ___  __
+          / ___|/ _ \|  _ \| | | \ \/ /
+         | |  _| | | | | | | | | |\  /
+         | |_| | |_| | |_| | |_| |/  \
+          \____|\___/|____/ \___//_/\_\
+EOF
+echo -e "\e[0m"
+echo -e "             \e[38;2;255;255;255mGodot Universal eXport\e[0m"
+echo ""
+echo -e "\e[38;2;255;255;0m Export Godot Projects From Anywhere, To Anywhere.\e[0m"
+echo -e "\e[38;2;72;118;255m====================================================\e[0m"
+
 if [[ ! -e "export_presets.cfg" ]]; then
   printf "\n\e[1;31m[ERROR]\e[0m Can't find export_presets.cfg. Exiting.\n"
   exit 1
