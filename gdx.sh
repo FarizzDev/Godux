@@ -402,8 +402,7 @@ read -p "Enter Templates link (default Godot v3.6-stable): " templates_link
 validate_url "$templates_link" "Templates link"
 
 # Debug and Cache input
-echo -e "\n\\e[90m(Note: For new Android keys, this is also used as the certificate's CN. If using an existing key, it's only for filenames.)\\e[0m"
-read -p "Enter a base name for output files (e.g., MyGame): " dname
+read -p "Enter a base name for output files (e.g., MyGame): " file_basename
 read -p "Enable debug? (y/N): " debug
 debug=${debug,,} # Convert to lowercase
 debug=${debug:-"n"}
@@ -440,6 +439,7 @@ if [[ "$platform" == "Android" || "$preset_name" == $'[ Export All Preset ]\u206
     else
       echo "No existing keystore. We will generate a new one."
       gh secret remove RELEASE_KEYSTORE_BASE64 &>/dev/null || true
+      read -p "Enter Certificate CN (e.g., Your Name, Your Company): " cert_cn
       read -p "Enter Organization for Android (O, optional): " org
       read -p "Enter 2-letter Country Code for Android (C, optional): " country
     fi
@@ -453,6 +453,7 @@ if [[ "$platform" == "Android" || "$preset_name" == $'[ Export All Preset ]\u206
   else
     user="androiddebugkey"
     keypass="android"
+    cert_cn="Android Debug"
   fi
 
   printf "\n"
@@ -467,7 +468,7 @@ echo -e "\e[38;2;61;220;132m# Running workflow...\e[0m"
 args=("export.yml")
 
 # Add fields if inputs are present
-for FIELD in godot_link templates_link preset_name debug cache dname org country; do
+for FIELD in godot_link templates_link preset_name debug cache file_basename cert_cn org country; do
   VALUE="${!FIELD-}"
   if [ -n "$VALUE" ]; then
     args+=("-f")

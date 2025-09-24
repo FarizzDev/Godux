@@ -23,10 +23,14 @@ on:
         description: "Cache"
         type: boolean
         default: true
-      dname:
-        description: "Display Name (for file names & CN)"
+      file_basename:
+        description: "Base name for output files (e.g., MyGame)"
         required: true
         default: "GoduxExport"
+      cert_cn:
+        description: "Certificate CN (e.g., Your Name, Your Company)"
+        required: false
+        default: "Godux User"
       org:
         description: "Organization for Android (O)"
         required: false
@@ -49,7 +53,8 @@ jobs:
       KEYSTORE_USER: ${{ secrets.KEYSTORE_USER }}
       DEBUG: ${{ inputs.debug }}
       CACHE: ${{ inputs.cache }}
-      DNAME: ${{ inputs.dname }}
+      FILE_BASENAME: ${{ inputs.file_basename }}
+      CERT_CN: ${{ inputs.cert_cn }}
       ORG: ${{ inputs.org }}
       COUNTRY: ${{ inputs.country }}
 
@@ -144,11 +149,11 @@ jobs:
           elif [ "${{ env.DEBUG }}" = "false" ]; then
             echo "Generating new release keystore at ${{ env.RELEASE_KEYSTORE_PATH }}"
             mkdir -p "$(dirname "${{ env.RELEASE_KEYSTORE_PATH }}")"
-            keytool -genkey -v -keystore "${{ env.RELEASE_KEYSTORE_PATH }}" -alias "${{ env.KEYSTORE_USER }}" -storepass "${{ env.KEYSTORE_PASS }}" -keypass "${{ env.KEYSTORE_PASS }}" -dname "CN=${{ env.DNAME }},O=${{ env.ORG }},C=${{ env.COUNTRY }}" -keyalg RSA -keysize 2048 -validity 10000
+            keytool -genkey -v -keystore "${{ env.RELEASE_KEYSTORE_PATH }}" -alias "${{ env.KEYSTORE_USER }}" -storepass "${{ env.KEYSTORE_PASS }}" -keypass "${{ env.KEYSTORE_PASS }}" -dname "CN=${{ env.CERT_CN }},O=${{ env.ORG }},C=${{ env.COUNTRY }}" -keyalg RSA -keysize 2048 -validity 10000
           fi
           echo "Generating debug keystore at ${{ env.DEBUG_KEYSTORE_PATH }}"
           mkdir -p "$(dirname "${{ env.DEBUG_KEYSTORE_PATH }}")"
-          keytool -genkey -v -keystore "${{ env.DEBUG_KEYSTORE_PATH }}" -alias androiddebugkey -storepass android -keypass android -dname "CN=${{ env.DNAME }} (Debug),O=Android,C=US" -keyalg RSA -keysize 2048 -validity 9000
+          keytool -genkey -v -keystore "${{ env.DEBUG_KEYSTORE_PATH }}" -alias androiddebugkey -storepass android -keypass android -dname "CN=${{ env.FILE_BASENAME }} (Debug),O=Android,C=US" -keyalg RSA -keysize 2048 -validity 9000
 
       - name: 🛠 Export
         run: |
@@ -183,13 +188,13 @@ jobs:
               subfolder=$(echo "$platform_type" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' | sed 's|/x11||')
               mkdir -p "export/$subfolder"
               
-              OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}"
+              OUTPUT_PATH="export/$subfolder/${{ env.FILE_BASENAME }}"
               case "$platform_type" in
-                "Android") EXT=$(get_android_ext "$preset_name"); OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}.$EXT" ;; 
-                "Windows Desktop") OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}.exe" ;; 
-                "Linux/X11") OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}" ;; 
+                "Android") EXT=$(get_android_ext "$preset_name"); OUTPUT_PATH="export/$subfolder/${{ env.FILE_BASENAME }}.$EXT" ;; 
+                "Windows Desktop") OUTPUT_PATH="export/$subfolder/${{ env.FILE_BASENAME }}.exe" ;; 
+                "Linux/X11") OUTPUT_PATH="export/$subfolder/${{ env.FILE_BASENAME }}" ;; 
                 "HTML5") OUTPUT_PATH="export/$subfolder/index.html" ;; 
-                "Mac OSX") OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}.zip" ;; 
+                "Mac OSX") OUTPUT_PATH="export/$subfolder/${{ env.FILE_BASENAME }}.zip" ;; 
               esac
               
               godot $EXPORT_FLAG "$preset_name" "$OUTPUT_PATH"
@@ -205,18 +210,18 @@ jobs:
             subfolder=$(echo "$PRESET_NAME" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' | sed 's|/x11||' | sed 's|android2|android|') # Normalize subfolder
             mkdir -p "export/$subfolder"
             
-            OUTPUT_PATH="export/$subfolder/${{ env.DNAME }}"
+            OUTPUT_PATH="export/$subfolder/${{ env.FILE_BASENAME }}"
             if [[ "$PLATFORM" == "Android"* ]]; then
               EXT=$(get_android_ext "$PLATFORM")
-              OUTPUT_PATH="export/android/${{ env.DNAME }}.$EXT"
+              OUTPUT_PATH="export/android/${{ env.FILE_BASENAME }}.$EXT"
             elif [ "$PLATFORM" = "Windows Desktop" ]; then
-              OUTPUT_PATH="export/windows/${{ env.DNAME }}.exe"
+              OUTPUT_PATH="export/windows/${{ env.FILE_BASENAME }}.exe"
             elif [ "$PLATFORM" = "Linux/X11" ]; then
-              OUTPUT_PATH="export/linux/${{ env.DNAME }}"
+              OUTPUT_PATH="export/linux/${{ env.FILE_BASENAME }}"
             elif [ "$PLATFORM" = "HTML5" ]; then
               OUTPUT_PATH="export/html5/index.html"
             elif [ "$PLATFORM" = "Mac OSX" ]; then
-              OUTPUT_PATH="export/macosx/${{ env.DNAME }}.zip"
+              OUTPUT_PATH="export/macosx/${{ env.FILE_BASENAME }}.zip"
             fi
             
             godot $EXPORT_FLAG "$PRESET_NAME" "$OUTPUT_PATH"
@@ -225,9 +230,9 @@ jobs:
           if [[ "$ISANDROID" == "true" && "${{ env.DEBUG }}" == "false" ]]; then
             cp "${{ env.RELEASE_KEYSTORE_PATH }}" export/android/
           fi
-          zip -r -7 "${{ env.DNAME }}.zip" export/
+          zip -r -7 "${{ env.FILE_BASENAME }}.zip" export/
 
       - name: 🚀 Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "build-${{ github.run_id }}" "${{ env.DNAME }}.zip" --notes "Automated build from GitHub Actions"
+        run: gh release create "build-${{ github.run_id }}" "${{ env.FILE_BASENAME }}.zip" --notes "Automated build from GitHub Actions"
