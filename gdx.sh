@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # MIT License (see LICENSE)
 # Copyright (c) 2025 FarizzDev
+set -euo pipefail
 
 # Auto-Update
 VERSION="v0.7.0"
@@ -84,9 +85,8 @@ checkForUpdates() {
     fi
   fi
 }
-
 syncWorkflow() {
-  echo "Syncing workflow file to script version ($VERSION)..."
+  echo "Syncing workflow files to script version ($VERSION)..."
   WORKFLOW_FILE=".github/workflows/export.yml"
 
   TEMP_REMOTE_HASH_FILE=$(mktemp)
@@ -128,7 +128,6 @@ syncWorkflow() {
   mkdir -p .github/workflows
   mv "$TEMP_WORKFLOW_FILE" "$WORKFLOW_FILE"
 }
-
 # Dependency installation
 install_dependencies() {
   echo -e "\e[38;2;61;220;132m# Checking for dependencies...\e[0m"
@@ -197,8 +196,6 @@ install_dependencies() {
 printf "\n"
 install_dependencies
 
-set -euo pipefail
-
 # Cleanup function to remove secrets
 endProgram() {
   exitcode=$?
@@ -259,7 +256,6 @@ if [[ ! -e "export_presets.cfg" ]]; then
   printf "\n\e[1;31m[ERROR]\e[0m Can't find export_presets.cfg. Exiting.\n"
   exit 1
 fi
-
 printf "\n"
 if [ -z "$(git config --get-all user.name)" ]; then
   read -p "Git username: " name
@@ -305,7 +301,7 @@ echo -e "\e[38;2;61;220;132m# Checking for code changes...\e[0m"
 
 # First, check for uncommitted local changes
 if [ -n "$(git status --porcelain)" ]; then
-  echo -e "\e[1;34m[INFO]\e[0m Local changes detected. Committing and pushing..."
+  echo -e "\e[1;34m[INFO]\e[0m Local changes detected. Uploading changes..."
   git add .
   git commit -m "Export Project"
   git push -u origin main
@@ -318,8 +314,7 @@ else
   REMOTE=$(git rev-parse @{u})
 
   if [ "$LOCAL" == "$REMOTE" ]; then
-    echo "Repository is already up to date. No changes to push."
-    read -p "Do you want to re-run the workflow on the existing code? (y/N): " confirm_rerun
+    read -p "No changes detected. Force rebuild? (y/N): " confirm_rerun
     confirm_rerun=${confirm_rerun,,}
     confirm_rerun=${confirm_rerun:-n}
     if [[ ! "$confirm_rerun" =~ ^y(e?s)?$ ]]; then
@@ -333,16 +328,9 @@ else
   fi
 fi
 
-# Run export.yml workflow
-
+## Run export.yml workflow
 # Get all preset names and their platforms
-presets_with_platforms=$(awk '
-  BEGIN { FS = "[[:space:]]*=[[:space:]]*" }
-  /^\[preset\./ { if (n&&p) print n"|"p; n=""; p="" }
-  /^name/ { n=$2; gsub(/"/,"",n) }
-  /^platform/ { p=$2; gsub(/"/,"",p) }
-  END { if (n&&p) print n"|"p }
-' export_presets.cfg)
+presets_with_platforms=$(python3 .github/scripts/lib/parse_presets.py list)
 
 options=()
 options+=("$ALL")
@@ -373,12 +361,7 @@ done <<<"$presets_with_platforms"
 
 presetname_raw=$(printf "%b\n" "${options[@]}" | fzf --ansi --no-sort --prompt="Select a platform: ")
 preset_name=$(echo "$presetname_raw" | sed -r 's/\x1B\[[0-9;:]*[mK]//g')
-platform=$(awk -v ref="$preset_name" '
-  /^\[preset\./ { n=""; p="" }
-  /^name=/      { n=$0; gsub(/.*="/,"",n); gsub(/".*/,"",n) }
-  /^platform=/  { p=$0; gsub(/.*="/,"",p); gsub(/".*/,"",p) }
-  n==ref && p { print p; exit }
-' export_presets.cfg)
+platform=$(python3 .github/scripts/lib/parse_presets.py platform "$preset_name")
 
 if [ -z "$preset_name" ]; then
   echo -e "\e[1;31m[ERROR]\e[0m No platform selected. Exiting."
@@ -404,7 +387,7 @@ validate_url "$templates_link" "Templates link"
 # Debug and Cache input
 read -p "Enter a base name for output files (e.g., MyGame): " file_basename
 read -p "Enable debug? (y/N): " debug
-debug=${debug,,} # Convert to lowercase
+debug=${debug,,}
 debug=${debug:-"n"}
 debug=$([[ "$debug" =~ ^y(e?s)?$ ]] && echo true || echo false)
 
@@ -415,17 +398,12 @@ cache=$([[ "$cache" =~ ^y(e?s)?$ ]] && echo true || echo false)
 
 # Android requirements
 if [[ "$platform" == "Android" || "$preset_name" == $'[ Export All Preset ]\u2063' ]]; then
-  ISANDROID=$(awk -F= '
-    BEGIN { IGNORECASE=1 }
-    /^\[preset\.[0-9]+\]$/ { in_preset=1; next }
-    /^\[/ && $0 !~ /^\[preset\.[0-9]+\]$/ { in_preset=0 }
-    in_preset && /platform/ && $2 ~ /Android/ { print "true"; exit }
-  ' export_presets.cfg)
+  python3 .github/scripts/lib/parse_presets.py is_android "$preset_name" && ISANDROID=true || ISANDROID=false
 
   if [[ "$ISANDROID" == "true" && ! "$debug" == "true" ]]; then
     read -p "Do you have an existing release.keystore file? (y/N): " has_keystore
     has_keystore=${has_keystore,,}
-    has_keystore=${has_keystore:-\"n\"}
+    has_keystore=${has_keystore:-n}
 
     if [[ "$has_keystore" =~ ^y(e?s)?$ ]]; then
       read -p "Enter the path to your release.keystore file: " keystore_path
