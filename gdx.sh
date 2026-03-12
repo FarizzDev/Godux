@@ -101,48 +101,60 @@ checkForUpdates() {
     fi
   fi
 }
-syncWorkflow() {
+syncFiles() {
   echo -e "${INFO} Syncing workflow files to script version ($VERSION)..."
-  WORKFLOW_FILE=".github/workflows/export.yml"
 
-  TEMP_REMOTE_HASH_FILE=$(mktemp)
-  if ! gh release download "$VERSION" --repo "$UPSTREAM_REPO" --pattern 'export.yml.sha256' --clobber --output "$TEMP_REMOTE_HASH_FILE" >/dev/null 2>&1; then
-    echo -e "${WARN} Could not find 'export.yml.sha256' for version $VERSION. Cannot guarantee workflow integrity."
-    if [[ ! -f "$WORKFLOW_FILE" ]]; then
+  TEMP_HASH_FILE=$(mktemp)
+  TEMP_ZIP=$(mktemp)
+
+  # Download checksum
+  if ! gh release download "$VERSION" --repo "$UPSTREAM_REPO" --pattern 'godux-scripts.zip.sha256' --clobber --output "$TEMP_HASH_FILE" >/dev/null 2>&1; then
+    echo -e "${WARN} Could not find 'godux-scripts.zip.sha256' for version $VERSION. Cannot guarantee workflow integrity."
+    if [[ ! -f ".github/workflows/export.yml" ]]; then
       echo -e "${ERROR} And no local workflow file exists. Aborting."
+      rm -f "$TEMP_HASH_FILE"
       exit 1
     fi
+    rm -f "$TEMP_HASH_FILE"
     return
   fi
-  REMOTE_HASH=$(cat "$TEMP_REMOTE_HASH_FILE" | awk '{print $1}')
-  rm -f "$TEMP_REMOTE_HASH_FILE"
+
+  REMOTE_HASH=$(awk '{print $1}' "$TEMP_HASH_FILE")
+  rm -f "$TEMP_HASH_FILE"
 
   LOCAL_HASH=""
-  if [[ -f "$WORKFLOW_FILE" ]]; then
-    LOCAL_HASH=$(sha256sum "$WORKFLOW_FILE" | awk '{print $1}')
+  if [[ -f ".github/godux-scripts.zip.sha256" ]]; then
+    LOCAL_HASH=$(awk '{print $1}' ".github/godux-scripts.zip.sha256")
   fi
 
   if [ "$LOCAL_HASH" = "$REMOTE_HASH" ]; then
     return
   fi
 
-  echo "Local workflow is out of sync or missing. Downloading version for $VERSION..."
-  TEMP_WORKFLOW_FILE=$(mktemp)
-  if ! gh release download "$VERSION" --repo "$UPSTREAM_REPO" --pattern 'export.yml' --clobber --output "$TEMP_WORKFLOW_FILE"; then
-    echo -e "${ERROR} Failed to download workflow file for version $VERSION. Aborting."
+  echo -e "${INFO} Local files are out of sync or missing. Downloading..."
+
+  # Download zip
+  if ! gh release download "$VERSION" --repo "$UPSTREAM_REPO" --pattern 'godux-scripts.zip' --clobber --output "$TEMP_ZIP" >/dev/null 2>&1; then
+    echo -e "${ERROR} Failed to download scripts for version $VERSION. Aborting."
+    rm -f "$TEMP_ZIP"
     exit 1
   fi
 
-  DOWNLOAD_HASH=$(sha256sum "$TEMP_WORKFLOW_FILE" | awk '{print $1}')
+  # Verify checksum
+  DOWNLOAD_HASH=$(sha256sum "$TEMP_ZIP" | awk '{print $1}')
   if [ "$DOWNLOAD_HASH" != "$REMOTE_HASH" ]; then
-    echo -e "\e[1;31m[ERROR] CHECKSUM FAILED!\e[0m The downloaded workflow file is corrupt. Aborting."
-    rm -f "$TEMP_WORKFLOW_FILE"
+    echo -e "${ERROR} CHECKSUM FAILED! The downloaded file may be corrupt. Aborting."
+    rm -f "$TEMP_ZIP"
     exit 1
   fi
 
-  echo -e "${SUCCESS} \e[38;2;61;220;132mWorkflow synced successfully to version $VERSION.\e[0m"
-  mkdir -p .github/workflows
-  mv "$TEMP_WORKFLOW_FILE" "$WORKFLOW_FILE"
+  mkdir -p .github/workflows .github/scripts/lib
+  unzip -q "$TEMP_ZIP" -d .github/
+  rm -f "$TEMP_ZIP"
+
+  echo "$REMOTE_HASH" >.github/godux-scripts.zip.sha256
+
+  echo -e "${SUCCESS} \e[38;2;61;220;132mFiles synced successfully to version $VERSION.\e[0m"
 }
 # Dependency installation
 install_dependencies() {
@@ -155,6 +167,10 @@ install_dependencies() {
       missing_deps+=("$cmd")
     fi
   done
+
+  if ! command -v python3 &>/dev/null && ! command -v python &>/dev/null; then
+    missing_deps+=("python3")
+  fi
 
   if [ ${#missing_deps[@]} -eq 0 ]; then
     echo -e "${INFO} All dependencies are already installed."
@@ -177,27 +193,44 @@ install_dependencies() {
     SUDO="sudo"
   fi
 
+  # Detect package manager
   if command -v apt-get &>/dev/null; then
-    echo -e "${INFO} Attempting to install using 'apt'..."
-    $SUDO apt-get update
-    $SUDO apt-get install -y git gh fzf bc jq
+    PKG_MANAGER="apt-get"
   elif command -v brew &>/dev/null; then
-    echo -e "${INFO} Attempting to install using 'brew'..."
-    brew install git gh fzf bc jq
+    PKG_MANAGER="brew"
   elif command -v pacman &>/dev/null; then
-    echo -e "${INFO} Attempting to install using 'pacman'..."
-    $SUDO pacman -S --noconfirm git github-cli fzf bc jq
+    PKG_MANAGER="pacman"
   elif command -v dnf &>/dev/null; then
-    echo -e "${INFO} Attempting to install using 'dnf'..."
-    $SUDO dnf install -y git gh fzf bc jq
+    PKG_MANAGER="dnf"
   elif command -v pkg &>/dev/null; then
-    echo -e "${INFO} Attempting to install using 'pkg'..."
-    pkg install -y git gh fzf bc jq
+    PKG_MANAGER="pkg"
   else
     echo -e "${ERROR} Could not detect a supported package manager (apt, brew, pacman, dnf, pkg)."
     echo -e "${INFO} Please install the missing dependencies manually: ${missing_deps[*]}"
     exit 1
   fi
+
+  echo -e "${INFO} Attempting to install using '$PKG_MANAGER'..."
+
+  # Package names per PM
+  case "$PKG_MANAGER" in
+  apt-get)
+    $SUDO apt-get update
+    $SUDO apt-get install -y git gh fzf bc jq python3
+    ;;
+  brew)
+    brew install git gh fzf bc jq python3
+    ;;
+  pacman)
+    $SUDO pacman -S --noconfirm git github-cli fzf bc jq python
+    ;;
+  dnf)
+    $SUDO dnf install -y git gh fzf bc jq python3
+    ;;
+  pkg)
+    pkg install -y git gh fzf bc jq python
+    ;;
+  esac
 
   # Verify installation
   for cmd in git gh fzf bc jq; do
@@ -206,6 +239,10 @@ install_dependencies() {
       exit 1
     fi
   done
+  if ! command -v python3 &>/dev/null && ! command -v python &>/dev/null; then
+    echo -e "${ERROR} Failed to install python. Please install it manually."
+    exit 1
+  fi
 
   echo -e "\e[38;2;61;220;132m# Dependencies installed successfully.\e[0m"
 }
@@ -242,7 +279,7 @@ endProgram() {
 trap endProgram INT TERM EXIT
 
 checkForUpdates
-syncWorkflow
+syncFiles
 
 # Platform colors
 ANDROID="\e[38;2;61;220;132m"

@@ -1,107 +1,84 @@
 #!/bin/bash
-
-# Exit immediately if a command exits with a non-zero status.
 set -e
 
-# --- Logging Functions ---
+# --- Logging ---
 log_info() { echo -e "\e[1;34m[INFO]\e[0m $*"; }
 log_warn() { echo -e "\e[1;33m[WARNING]\e[0m $*"; }
 log_error() { echo -e "\e[1;31m[ERROR]\e[0m $*" >&2; }
 log_success() { echo -e "\e[1;32m[SUCCESS]\e[0m $*"; }
 
-# --- Determine Install Paths ---
+UPSTREAM_REPO="FarizzDev/godux"
+
+# --- Determine Install Path ---
 if [ -n "$TERMUX_VERSION" ]; then
-  # Termux environment
   INSTALL_DIR="$PREFIX/bin"
-  DOC_DIR="$PREFIX/share/gdx"
 elif [ "$(id -u)" -eq 0 ]; then
-  # Linux/macOS root
   INSTALL_DIR="/usr/bin"
-  DOC_DIR="/usr/share/gdx"
 else
-  # Linux/macOS user-local
   INSTALL_DIR="$HOME/.local/bin"
-  DOC_DIR="$HOME/.local/share/gdx"
 fi
 
-mkdir -p "$INSTALL_DIR" "$DOC_DIR"
+mkdir -p "$INSTALL_DIR"
 
-# --- Functions ---
-
-install_dependencies() {
-  log_info "Checking for required packages..."
-  PACKAGES="git gh fzf bc jq"
-  local missing_deps=()
-  for cmd in $PACKAGES; do
-    if ! command -v "$cmd" &>/dev/null; then
-      missing_deps+=("$cmd")
-    fi
-  done
-
-  if [ ${#missing_deps[@]} -eq 0 ]; then
-    log_info "All dependencies are already installed."
-    return
-  fi
-
-  if [ -n "$TERMUX_VERSION" ]; then
-    log_info "Detected Termux. Installing packages with pkg."
-    pkg update -y
-    pkg install -y ${missing_deps[*]}
-  elif command -v apt-get >/dev/null 2>&1; then
-    log_info "Detected Debian/Ubuntu. Installing packages with apt-get."
-    sudo apt-get update
-    sudo apt-get install -y ${missing_deps[*]}
-  elif command -v pacman >/dev/null 2>&1; then
-    log_info "Detected Arch Linux. Installing packages with pacman."
-    sudo pacman -Syu --noconfirm ${missing_deps[*]}
-  elif command -v brew >/dev/null 2>&1; then
-    log_info "Detected macOS. Installing packages with Homebrew."
-    brew install ${missing_deps[*]}
+# --- Download helper ---
+download() {
+  local url="$1"
+  local output="$2"
+  if command -v curl &>/dev/null; then
+    curl -fsSL "$url" -o "$output"
+  elif command -v wget &>/dev/null; then
+    wget -q "$url" -O "$output"
   else
-    log_error "Unsupported package manager. Please install manually: ${missing_deps[*]}"
+    log_error "Neither curl nor wget found. Please install one and try again."
     exit 1
   fi
-  log_success "Dependencies installed successfully."
 }
 
-install_script() {
-  log_info "Installing gdx script..."
+main() {
+  log_info "Fetching latest release..."
+  LATEST_VERSION=$(curl -fsSL "https://api.github.com/repos/$UPSTREAM_REPO/releases/latest" | grep '"tag_name"' | cut -d'"' -f4)
 
-  if [ ! -f "gdx.sh" ]; then
-    log_error "gdx.sh not found in the current directory."
+  if [ -z "$LATEST_VERSION" ]; then
+    log_error "Could not fetch latest version. Are you offline?"
     exit 1
   fi
 
-  # Copy LICENSE and README
-  if [ -f "LICENSE" ]; then
-    cp LICENSE "$DOC_DIR/LICENSE"
-  fi
-  if [ -f "README.md" ]; then
-    cp README.md "$DOC_DIR/README.md"
-  fi
-  log_success "LICENSE and README installed to $DOC_DIR"
+  log_info "Installing gdx $LATEST_VERSION..."
 
-  # Copy the script and make it executable
-  cp "gdx.sh" "$INSTALL_DIR/gdx"
+  BASE_URL="https://github.com/$UPSTREAM_REPO/releases/download/$LATEST_VERSION"
+  TEMP_FILE=$(mktemp)
+  TEMP_HASH=$(mktemp)
+
+  log_info "Downloading gdx..."
+  download "$BASE_URL/gdx.sh" "$TEMP_FILE"
+
+  log_info "Verifying checksum..."
+  download "$BASE_URL/gdx.sh.sha256" "$TEMP_HASH"
+
+  REMOTE_HASH=$(awk '{print $1}' "$TEMP_HASH")
+  LOCAL_HASH=$(sha256sum "$TEMP_FILE" | awk '{print $1}')
+  rm -f "$TEMP_HASH"
+
+  if [ "$REMOTE_HASH" != "$LOCAL_HASH" ]; then
+    log_error "Checksum FAILED! The downloaded file may be corrupt. Aborting."
+    rm -f "$TEMP_FILE"
+    exit 1
+  fi
+
+  log_success "Checksum passed."
+  mv "$TEMP_FILE" "$INSTALL_DIR/gdx"
   chmod +x "$INSTALL_DIR/gdx"
-  log_success "gdx installed to $INSTALL_DIR/gdx"
 
-  # Check if user-local bin is in PATH
+  # PATH check
   if [[ "$INSTALL_DIR" == "$HOME/.local/bin" ]]; then
     if ! echo "$PATH" | grep -q "$HOME/.local/bin"; then
-      echo "WARNING: $HOME/.local/bin is not in your PATH."
-      echo "Add this line to your shell rc file (e.g., ~/.bashrc):"
+      log_warn "$HOME/.local/bin is not in your PATH."
+      echo "Add this to your ~/.bashrc:"
       echo 'export PATH="$HOME/.local/bin:$PATH"'
     fi
   fi
 
-  log_info "You can now run the script from anywhere by typing: gdx"
-}
-
-# --- Main Execution ---
-main() {
-  install_dependencies
-  install_script
+  log_success "gdx installed! Run 'gdx' to get started."
 }
 
 main

@@ -25,7 +25,7 @@ SUCCESS="${GREEN}[✓]${RESET}"
 PROMPT="${CYAN}[?]${RESET}"
 
 source ./update_check.sh
-source ./workflow_sync.sh
+source ./sync_files.sh
 source ./env_check.sh
 
 # Cleanup function to remove secrets
@@ -57,7 +57,7 @@ endProgram() {
 trap endProgram INT TERM EXIT
 
 checkForUpdates
-syncWorkflow
+syncFiles
 
 # Platform colors
 ANDROID="\e[38;2;61;220;132m"
