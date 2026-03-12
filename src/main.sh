@@ -4,10 +4,25 @@
 set -euo pipefail
 
 # Auto-Update
-VERSION="v0.7.0"
+VERSION="v0.7.0-dev1"
 UPSTREAM_REPO="FarizzDev/Godux"
 CHECK_INTERVAL=86400 # 24 hours in seconds
 LAST_CHECK_FILE=~/.godux_last_check
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[94m'
+CYAN='\033[0;36m'
+RESET='\033[0m'
+
+# Prefix symbols
+INFO="${BLUE}[INFO]${RESET}"
+WARN="${YELLOW}[!]${RESET}"
+ERROR="${RED}[✗]${RESET}"
+SUCCESS="${GREEN}[✓]${RESET}"
+PROMPT="${CYAN}[?]${RESET}"
 
 source ./update_check.sh
 source ./workflow_sync.sh
@@ -63,30 +78,31 @@ echo -e "\e[38;2;61;220;132m# Checking for code changes...\e[0m"
 
 # First, check for uncommitted local changes
 if [ -n "$(git status --porcelain)" ]; then
-  echo -e "\e[1;34m[INFO]\e[0m Local changes detected. Uploading changes..."
+  echo -e "${INFO} Local changes detected. Uploading changes..."
   git add .
   git commit -m "Export Project"
-  git push -u origin main
+  git push -u origin main -q
 else
   # If no local changes, check if remote is in sync
-  echo -e "\e[1;33m[WARNING]\e[0m No local changes found. Checking remote repository..."
-  git fetch
+  echo -e "${WARN} No local changes found. Checking remote repository..."
+  git fetch -q
 
   LOCAL=$(git rev-parse HEAD)
   REMOTE=$(git rev-parse @{u})
 
   if [ "$LOCAL" == "$REMOTE" ]; then
-    read -p "No changes detected. Force rebuild? (y/N): " confirm_rerun
+    echo -ne "${PROMPT} No changes detected. Force rebuild? (Y/n): "
+    read confirm_rerun
     confirm_rerun=${confirm_rerun,,}
-    confirm_rerun=${confirm_rerun:-n}
+    confirm_rerun=${confirm_rerun:-y}
     if [[ ! "$confirm_rerun" =~ ^y(e?s)?$ ]]; then
       echo "Aborting."
       exit 0
     fi
   else
     # This case happens if the local branch is ahead/behind but the working dir is clean.
-    echo -e "\e[1;33m[WARNING]\e[0m Local repository is not in sync with remote. Pushing..."
-    git push -u origin main
+    echo -e "${WARN} Local repository is not in sync with remote. Pushing..."
+    git push -u origin main -q
   fi
 fi
 
@@ -96,27 +112,32 @@ source ./select_platform.sh
 # Function to validate URL
 validate_url() {
   if [[ -n "$1" && ! "$1" =~ ^https?:// ]]; then
-    echo -e "\e[1;31m[ERROR]\e[0m Invalid URL format for $2. It must start with http:// or https://"
+    echo -e "${ERROR} Invalid URL format for $2. It must start with http:// or https://"
     exit 1
   fi
 }
 
 printf "\n"
 # Input links
-read -p "Enter Godot link (default Godot v3.6-stable): " godot_link
+echo -ne "${PROMPT} Enter Godot link (default Godot v3.6-stable): "
+read godot_link
 validate_url "$godot_link" "Godot link"
 
-read -p "Enter Templates link (default Godot v3.6-stable): " templates_link
+echo -ne "${PROMPT} Enter Templates link (default Godot v3.6-stable): "
+read templates_link
 validate_url "$templates_link" "Templates link"
 
 # Debug and Cache input
-read -p "Enter a base name for output files (e.g., MyGame): " file_basename
-read -p "Enable debug? (y/N): " debug
+echo -ne "${PROMPT} Enter a base name for output files (e.g., MyGame): "
+read file_basename
+echo -ne "${PROMPT} Enable debug? (y/N): "
+read debug
 debug=${debug,,}
 debug=${debug:-"n"}
 debug=$([[ "$debug" =~ ^y(e?s)?$ ]] && echo true || echo false)
 
-read -p "Enable cache? (Y/n): " cache
+echo -ne "${PROMPT} Enable cache? (Y/n): "
+read cache
 cache=${cache,,}
 cache=${cache:-"y"}
 cache=$([[ "$cache" =~ ^y(e?s)?$ ]] && echo true || echo false)
@@ -126,32 +147,45 @@ if [[ "$platform" == "Android" || "$preset_name" == $'[ Export All Preset ]\u206
   python3 .github/scripts/lib/parse_presets.py is_android "$preset_name" && ISANDROID=true || ISANDROID=false
 
   if [[ "$ISANDROID" == "true" && ! "$debug" == "true" ]]; then
-    read -p "Do you have an existing release.keystore file? (y/N): " has_keystore
+    echo -ne "${PROMPT} Do you have an existing release.keystore file? (y/N): "
+    read has_keystore
     has_keystore=${has_keystore,,}
     has_keystore=${has_keystore:-n}
 
     if [[ "$has_keystore" =~ ^y(e?s)?$ ]]; then
-      read -p "Enter the path to your release.keystore file: " keystore_path
-      if [ ! -f "$keystore_path" ]; then
-        echo "Error: Keystore file not found at '$keystore_path'"
-        exit 1
-      fi
-      echo "Encoding and setting keystore secret..."
+      while true; do
+        echo -ne "${PROMPT} Enter the path to your release.keystore file: "
+        read -e keystore_path
+
+        if [ -f "$keystore_path" ]; then
+          break
+        fi
+
+        echo -e "${ERROR} Keystore file not found at '$keystore_path'"
+      done
+
+      echo -e "${INFO} Encoding and setting keystore secret..."
       keystore_base64=$(base64 -w 0 "$keystore_path")
       gh secret set RELEASE_KEYSTORE_BASE64 --body "$keystore_base64"
     else
-      echo "No existing keystore. We will generate a new one."
+      echo -e "${INFO} No existing keystore. We will generate a new one."
       gh secret remove RELEASE_KEYSTORE_BASE64 &>/dev/null || true
-      read -p "Enter Certificate CN (e.g., Your Name, Your Company): " cert_cn
-      read -p "Enter Organization for Android (O, optional): " org
-      read -p "Enter 2-letter Country Code for Android (C, optional): " country
+      echo -ne "${PROMPT} Enter Certificate CN (e.g., Your Name, Your Company): "
+      read cert_cn
+      echo -ne "${PROMPT} Enter Organization for Android (O, optional): "
+      read org
+      echo -ne "${PROMPT} Enter 2-letter Country Code for Android (C, optional): "
+      read country
     fi
 
-    read -p "Enter 'user' alias for Android keystore: " user
-    read -sp "Enter 'pass' for Android keystore: " keypass
+    echo -ne "${PROMPT} Enter 'user' alias for Android keystore: "
+    read user
+    echo -ne "${PROMPT} Enter 'pass' for Android keystore: "
+    read -s keypass
     while [[ ${#keypass} -lt 6 ]]; do
       echo "Keypass must be at least 6 characters long."
-      read -sp "Enter 'pass' for Android keystore: " keypass
+      echo -ne "${PROMPT} Enter 'pass' for Android keystore: "
+      read -s keypass
     done
   else
     user="androiddebugkey"
@@ -240,7 +274,7 @@ while true; do
   # Check workflow status to exit loop if completed
   WORKFLOW_STATUS=$(gh run view "$WORKFLOW_ID" --json status -q '.status')
   if [[ "$WORKFLOW_STATUS" == "completed" ]]; then
-    echo -e "\n\e[38;2;61;220;132mWorkflow completed."
+    echo -e "\n${INFO} \e[38;2;61;220;132mWorkflow completed."
     break
   fi
 
@@ -250,11 +284,11 @@ done
 # Check if workflow was successful
 CONCLUSION=$(gh run view "$WORKFLOW_ID" --json conclusion -q '.conclusion')
 if [[ "$CONCLUSION" == "success" ]]; then
-  echo -e "Workflow succeeded!\e[0m"
+  echo -e "${SUCCESS} Workflow succeeded!\e[0m"
   printf "\n"
 
   RELEASE_TAG="build-$WORKFLOW_ID"
-  echo "Build has been published as a release with tag: $RELEASE_TAG"
+  echo -e "${SUCCESS} Build has been published as a release with tag: $RELEASE_TAG"
 
   # Get asset info from the release
   ASSET_INFO=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[] | {name: .name, size: .size}')
@@ -267,32 +301,33 @@ if [[ "$CONCLUSION" == "success" ]]; then
     mkdir -p "$export_dir"
 
     ASSET_SIZE_MB=$(echo "scale=2; $ASSET_SIZE / 1024 / 1024" | bc)
-    echo "Release asset '$ASSET_NAME' is available with size: ${ASSET_SIZE_MB} MB"
+    echo -e "${INFO} Release asset '$ASSET_NAME' is available with size: ${ASSET_SIZE_MB} MB"
     printf "\n"
-    echo -e "run \033[36mgh release download $RELEASE_TAG --dir $export_dir\e[0m to download later"
+    echo -e "${INFO} run \033[36mgh release download $RELEASE_TAG --dir $export_dir\e[0m to download later"
 
     # Confirm download
-    read -p "Do you want to download the result now? (Y/n): " CONFIRM_DOWNLOAD
+    echo -ne "${PROMPT} Do you want to download the result now? (Y/n): "
+    read CONFIRM_DOWNLOAD
     CONFIRM_DOWNLOAD=${CONFIRM_DOWNLOAD,,}
     CONFIRM_DOWNLOAD=${CONFIRM_DOWNLOAD:-"y"}
     if [[ "$CONFIRM_DOWNLOAD" =~ ^y(e?s)?$ ]]; then
-      echo "Downloading release asset..."
+      echo -e "${INFO} Downloading release asset..."
       gh release download "$RELEASE_TAG" --dir "$export_dir"
-      echo -e "Asset successfully downloaded to \033[36m$export_dir\e[0m."
+      echo -e "${SUCCESS} Asset successfully downloaded to \033[36m$export_dir\e[0m."
     else
       echo -e "\e[31mDownload canceled.\e[0m"
     fi
     printf "\n"
   else
-    echo "Could not find asset in release '$RELEASE_TAG'!"
+    echo -e "${ERROR} Could not find asset in release '$RELEASE_TAG'!"
   fi
 else
-  echo "Workflow failed with status: $CONCLUSION"
+  echo -e "${ERROR} ${RED}Workflow failed with status: $CONCLUSION${RESET}"
   printf "\n"
-  if gh run view $WORKFLOW_ID --log-failed | grep -q "export"; then
-    ERROR_MESSAGE=$(gh run view $WORKFLOW_ID --log-failed | grep -Ev 'at:|VisualServer' | sed '1,/##\[endgroup\]/d')
-  else
-    ERROR_MESSAGE=$(gh run view $WORKFLOW_ID --log-failed | sed '1,/##\[endgroup\]/d')
-  fi
-  echo $ERROR_MESSAGE
+
+  gh run view $WORKFLOW_ID --log-failed |
+    tr -d '\r' |
+    grep -Ev 'at:|VisualServer' |
+    sed '1,/##\[endgroup\]/d' |
+    sed 's/[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9:.]\+Z //'
 fi

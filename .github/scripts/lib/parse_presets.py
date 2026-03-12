@@ -182,6 +182,9 @@ def cmd_keystore(presets, name, keystore_type):
     print(path if path else default)
 
 
+EXPORT_ALL_ID = "[ Export All Preset ]\u2063"
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -189,6 +192,10 @@ def main():
 
     presets = parse_presets(PRESETS_FILE)
     cmd = sys.argv[1]
+    preset_arg = sys.argv[2] if len(sys.argv) > 2 else ""
+    if preset_arg == EXPORT_ALL_ID:
+        print("")
+        sys.exit(0)
 
     if cmd == "list":
         cmd_list(presets)

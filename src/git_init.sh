@@ -9,16 +9,16 @@ if [ -z "$(git config --get-all user.email)" ]; then
 fi
 # Authenticate with GitHub
 if ! gh auth status &>/dev/null; then
-  echo -e "\e[1;34m[INFO]\e[0m GitHub CLI not authenticated."
+  echo -e "${INFO} GitHub CLI not authenticated."
   gh auth login
 fi
 
 GITHUB_USERNAME="$(gh api user --jq .login)"
 if [[ -z "$GITHUB_USERNAME" ]]; then
-  echo -e "\e[1;31m[ERROR]\e[0m Failed to get GitHub username. Please check your authentication."
+  echo -e "${ERROR} Failed to get GitHub username. Please check your authentication."
   exit 1
 else
-  echo -e "\e[1;34m[INFO]\e[0m Authenticated as $GITHUB_USERNAME"
+  echo -e "${INFO} Authenticated as $GITHUB_USERNAME"
 fi
 
 CWD=$(readlink -f .)

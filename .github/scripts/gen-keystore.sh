@@ -1,9 +1,13 @@
 #!/bin/bash
 set -e
 
-DEBUG_KEYSTORE_PATH=$(python3 .github/scripts/lib/parse_presets.py keystore "$PRESET_NAME" debug)
-
-RELEASE_KEYSTORE_PATH=$(python3 .github/scripts/lib/parse_presets.py keystore "$PRESET_NAME" release)
+if [ "$PRESET_NAME" = $'[ Export All Preset ]\u2063' ]; then
+  DEBUG_KEYSTORE_PATH="debug.keystore"
+  RELEASE_KEYSTORE_PATH="release.keystore"
+else
+  DEBUG_KEYSTORE_PATH=$(python3 .github/scripts/lib/parse_presets.py keystore "$PRESET_NAME" debug)
+  RELEASE_KEYSTORE_PATH=$(python3 .github/scripts/lib/parse_presets.py keystore "$PRESET_NAME" release)
+fi
 
 echo "DEBUG_KEYSTORE_PATH=$DEBUG_KEYSTORE_PATH" >>"$GITHUB_ENV"
 echo "RELEASE_KEYSTORE_PATH=$RELEASE_KEYSTORE_PATH" >>"$GITHUB_ENV"

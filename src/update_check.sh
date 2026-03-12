@@ -12,16 +12,16 @@ checkForUpdates() {
     fi
   fi
 
-  echo "Checking for updates..."
+  echo -e "${INFO} Checking for updates..."
   date +%s >"$LAST_CHECK_FILE"
 
   if ! LATEST_VERSION=$(gh api repos/$UPSTREAM_REPO/releases/latest --jq .tag_name 2>/dev/null); then
-    echo -e "\e[1;33m[WARNING]\e[0m Could not fetch releases. Are you offline?"
+    echo -e "${WARN} Could not fetch releases. Are you offline?"
     return
   fi
 
   if [ -z "$LATEST_VERSION" ]; then
-    echo -e "\e[1;33m[WARNING]\e[0m No releases found. Skipping update check."
+    echo -e "${WARN} No releases found. Skipping update check."
     return
   fi
 
@@ -29,48 +29,49 @@ checkForUpdates() {
 
   if [ "$highest_version" = "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "$VERSION" ]; then
     echo -e "\e[1;32m[UPDATE]\e[0m A new version ($LATEST_VERSION) is available. You are on version $VERSION."
-    read -p "Do you want to update now? (Y/n): " confirm_update
+    echo -ne "${PROMPT} Do you want to update now? (Y/n): "
+    read confirm_update
     confirm_update=${confirm_update,,}
     confirm_update=${confirm_update:-"y"}
 
     if [[ "$confirm_update" =~ ^y(e?s)?$ ]]; then
-      echo "Updating..."
+      echo -e "${INFO} Updating..."
       SCRIPT_PATH=$(readlink -f "$0")
       TEMP_FILE=$(mktemp)
       TEMP_HASH_FILE=$(mktemp)
 
-      echo "Downloading new version..."
+      echo -e "${INFO} Downloading new version..."
       if ! gh release download "$LATEST_VERSION" --repo "$UPSTREAM_REPO" --pattern 'gdx.sh' --clobber --output "$TEMP_FILE"; then
-        echo -e "\e[1;31m[ERROR]\e[0m Failed to download the script file."
+        echo -e "${ERROR} Failed to download the script file."
         rm -f "$TEMP_FILE" "$TEMP_HASH_FILE"
         exit 1
       fi
 
-      echo "Downloading checksum..."
+      echo -e "${INFO} Downloading checksum..."
       if ! gh release download "$LATEST_VERSION" --repo "$UPSTREAM_REPO" --pattern 'gdx.sh.sha256' --clobber --output "$TEMP_HASH_FILE"; then
-        echo -e "\e[1;31m[ERROR]\e[0m Failed to download the checksum file. Cannot verify integrity."
+        echo -e "${ERROR} Failed to download the checksum file. Cannot verify integrity."
         rm -f "$TEMP_FILE" "$TEMP_HASH_FILE"
         exit 1
       fi
 
-      echo "Verifying file integrity..."
-      REMOTE_HASH=$(cat "$TEMP_HASH_FILE" | awk '{print $1}')
+      echo -e "${INFO} Verifying file integrity..."
+      REMOTE_HASH=$(awk '{print $1}' "${TEMP_HASH_FILE}")
       LOCAL_HASH=$(sha256sum "$TEMP_FILE" | awk '{print $1}')
 
       if [ "$REMOTE_HASH" = "$LOCAL_HASH" ]; then
-        echo -e "\e[38;2;61;220;132mChecksum PASSED.\e[0m"
+        echo -e "${SUCCESS} \e[38;2;61;220;132mChecksum PASSED.\e[0m"
         mv "$TEMP_FILE" "$SCRIPT_PATH"
         chmod +x "$SCRIPT_PATH"
         rm -f "$TEMP_HASH_FILE"
-        echo -e "\e[1;32mUpdate successful! Please run the script again.\e[0m"
+        echo -e "${SUCCESS} Update successful! Please run the script again.\e[0m"
         exit 0
       else
-        echo -e "\e[1;31m[ERROR] CHECKSUM FAILED!\e[0m The downloaded file may be corrupt. Aborting update."
+        echo -e "${ERROR} CHECKSUM FAILED!\e[0m The downloaded file may be corrupt. Aborting update."
         rm -f "$TEMP_FILE" "$TEMP_HASH_FILE"
         exit 1
       fi
     else
-      echo "Update skipped."
+      echo -e "${INFO} Update skipped."
     fi
   fi
 }
