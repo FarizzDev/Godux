@@ -1,14 +1,17 @@
-# Godux: Godot Universal eXport 🚀
+# Godux: Godot Universal Export 🚀
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) ![Godot Version](https://img.shields.io/badge/Godot-3.x-blue.svg) ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Android-lightgrey.svg)
 
-**Crack The Limit and Go Beyond It.**
+_**Crack The Limit and Go Beyond It.**_
 
 ---
 
-Godux is a free and open-source command-line utility that leverages GitHub Actions to build and export Godot Engine projects.
+Godux is a free and open-source command-line tool that leverages GitHub Actions
+to build and export your Godot Engine projects — from any device.
 
-For instance, one could export a project for Windows (.exe), Linux (.x86_64), and Android (.apk/.aab) directly from a mobile device.
+No PC? No problem. Whether you're on a mobile phone, tablet, or a low-spec
+machine, Godux offloads the entire export process to GitHub's servers — so
+you can ship your game from any device.
 
 > **Note:** Currently, Godux officially supports **Godot 3.x**. Support for **Godot 4.x** is coming soon!
 
@@ -23,8 +26,8 @@ For instance, one could export a project for Windows (.exe), Linux (.x86_64), an
 
 The primary purpose of Godux is to overcome hardware and environment limitations. It is especially useful when:
 
-- **Your development machine has limited resources.** Compiling projects, particularly for multiple platforms, can be slow and consume significant CPU and RAM. Godux offloads this entire process to GitHub's powerful servers, keeping your machine responsive.
 - **You are developing on a device that cannot run the standard Godot export process,** such as a mobile phone or a tablet. Godux allows you to trigger a full-featured export workflow directly from a simple shell environment.
+- **Your development machine has limited resources.** Compiling projects, particularly for multiple platforms, can be slow and consume significant CPU and RAM. Godux offloads this entire process to GitHub's powerful servers, keeping your machine responsive.
 
 ## ⚙️ How It Works
 
@@ -40,50 +43,42 @@ Godux combines the power of shell scripting and CI/CD to create a seamless workf
 
 ## 🚀 Getting Started
 
-Getting up and running with Godux is simple.
-
 ### 1. Prerequisites
 
 - A **GitHub Account** (if you don't have one, [create one here](https://github.com)).
 - A standard **bash shell environment** (like Termux on Android, or the default terminal on Linux/macOS).
 
-### 2. Installation & Setup
+### 2. Installation
 
-The setup process only needs to be done once.
+Run this command to install Godux:
 
-1.  **Clone the repository:**
+```bash
+curl -fsSL https://github.com/FarizzDev/Godux/releases/latest/download/install.sh | bash
+```
 
-    ```bash
-    git clone https://github.com/FarizzDev/Godux
-    cd Godux
-    ```
-
-2.  **Run the installation script:**
-
-    ```bash
-    bash install.sh
-    ```
-
-    This script will automatically detect your operating system, install all the required dependencies (`git`, `gh`, `fzf`, `bc`, `jq`), and install `gdx` as a global command on your system.
-
-3.  **First-Time Configuration:**
-    The first time you run the gdx command, it will guide you through the setup process: - **Git Configuration:** If you haven't configured Git before, you will be prompted to enter your name and email. - **GitHub Authentication:** The script will then prompt you to log in to GitHub. This is required to create repositories and manage secrets for you. - **Repository Creation:** The script will automatically create a new **private** repository on your GitHub account to host your project and run the build workflows.
+This will install `gdx` as a global command. Dependencies will be automatically installed when you first run `gdx`.
 
 ### 3. Exporting
 
-Once the installation is complete, you can export your project by running the following command from your project's root directory:
+Run `gdx` from your Godot project's root directory:
 
 ```bash
 gdx
 ```
 
-The tool will then guide you through the following steps:
+The first time you run it, Godux will guide you through a one-time setup:
 
-1.  **Select a Platform:** Use the interactive menu to choose your target platform.
-2.  **Provide Links (Optional):** You can press `Enter` to use the default Godot and template versions or provide custom download links. For example, you can find various versions on the [community-maintained `godot-builds` repository releases page](https://github.com/godotengine/godot-builds/releases).
-3.  **Android Keystore (If applicable):** If you chose `Android`, you will be asked for a `user` alias and a `pass` for the keystore. This is stored securely in your repository's GitHub Secrets.
-4.  **Monitor the Build:** The script will show you the real-time progress of the build.
-5.  **Download:** Once finished, you will be prompted to download the release asset (a .zip file). The downloaded contents will be saved into the `export/` directory.
+- **Git Configuration:** Enter your name and email for Git commits.
+- **GitHub Authentication:** Log in to GitHub via the CLI.
+- **Repository Setup:** A private GitHub repository will be automatically created for your project.
+
+After setup, Godux will walk you through the export process:
+
+1. **Select a Preset:** Choose your target platform from an interactive menu.
+2. **Provide Links (Optional):** Press `Enter` to use the default Godot 3.6-stable, or provide a custom download link.
+3. **Android Keystore (if applicable):** Provide a `user` alias and `pass` for your keystore. Credentials are stored securely as GitHub Secrets.
+4. **Monitor the Build:** Watch real-time build progress from your terminal.
+5. **Download:** Once complete, you'll be prompted to download the result. Files are saved to the `export/` directory.
 
 ## 🤝 Contributing
 
@@ -92,9 +87,9 @@ Contributions are always welcome! Whether it's a new feature, a bug fix, or docu
 Please follow these steps to contribute:
 
 1.  **Fork** the repository.
-2.  Create a new branch (`git checkout -b feature/YourAmazingFeature`).
-3.  Make your changes and commit them (`git commit -m 'feat: Add some amazing feature'`).
-4.  Push to your branch (`git push origin feature/YourAmazingFeature`).
+2.  Create a new branch (`git checkout -b fix/add-bug-sprayer`).
+3.  Make your changes and commit them (`git commit -m 'fix: delete some bugs'`).
+4.  Push to your branch (`git push origin fix/add-bug-sprayer`).
 5.  Open a **Pull Request**.
 
 ## 🐛 Reporting Bugs
