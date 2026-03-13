@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.0.0)"
+        required: true
+      force_latest:
+        description: "Force as latest release"
+        type: boolean
+        default: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build gdx.sh
+        run: |
+          cd src
+          bash flattener.sh > ../gdx.sh
+          cd ..
+
+      - name: Package scripts
+        run: |
+          cd .github
+          zip -r ../godux-scripts.zip workflows/export.yml scripts/
+          cd ..
+
+      - name: Generate checksums
+        run: |
+          sha256sum gdx.sh > gdx.sh.sha256
+          sha256sum godux-scripts.zip > godux-scripts.zip.sha256
+
+      - name: Create Release
+        run: |
+          if [[ "${{ github.event.inputs.force_latest }}" == "true" ]]; then
+            RELEASE="--latest"
+          elif [[ "${{ github.ref_name }}" == *"beta"* ]] || [[ "${{ github.ref_name }}" == *"dev"* ]] || [[ "${{ github.ref_name }}" == *"rc"* ]]; then
+            RELEASE="--prerelease"
+          else
+            RELEASE="--latest"
+          fi
+
+          gh release create "${{ github.ref_name }}" \
+            gdx.sh \
+            gdx.sh.sha256 \
+            godux-scripts.zip \
+            godux-scripts.zip.sha256 \
+            install.sh \
+            --title "${{ github.ref_name }}" \
+            --notes "Release ${{ github.ref_name }}" \
+            $RELEASE
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
