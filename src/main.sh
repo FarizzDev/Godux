@@ -225,8 +225,25 @@ echo -e "\e[38;2;61;220;132m# Monitoring workflow steps...\e[0m"
 
 while true; do
   # Fetch steps that are in progress or recently completed
-  CURRENT_STEPS=$(gh api repos/$GITHUB_USERNAME/$REPO_NAME/actions/runs/$WORKFLOW_ID/jobs \
-    --jq '.jobs[].steps[] | {name: .name, conclusion: .conclusion, status: .status}')
+  MAX_RETRY=5
+  RETRY=0
+  CURRENT_STEPS=""
+
+  while [ $RETRY -lt $MAX_RETRY ]; do
+    CURRENT_STEPS=$(gh api repos/$GITHUB_USERNAME/$REPO_NAME/actions/runs/$WORKFLOW_ID/jobs \
+      --jq '.jobs[].steps[] | {name: .name, conclusion: .conclusion, status: .status}' 2>/dev/null)
+    if [ $? -eq 0 ]; then
+      break
+    fi
+    RETRY=$((RETRY + 1))
+    echo -e "${WARN} Connection error. Retrying ($RETRY/$MAX_RETRY)..."
+    sleep 3
+  done
+
+  if [ $RETRY -eq $MAX_RETRY ] && [ -z "$CURRENT_STEPS" ]; then
+    echo -e "${ERROR} Failed to connect to GitHub after $MAX_RETRY attempts."
+    exit 1
+  fi
 
   if [[ -z "$CURRENT_STEPS" ]]; then
     sleep 1
