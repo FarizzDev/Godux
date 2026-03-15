@@ -10,15 +10,16 @@ while IFS='|' read -r name platform_type; do
   fi
 
   case "$platform_type" in
-  Android) color_prefix=$ANDROID ;;
-  iOS) color_prefix=$IOS ;;
-  HTML5) color_prefix=$HTML5 ;;
-  Web) color_prefix=$HTML5 ;;
+  "Android") color_prefix=$ANDROID ;;
+  "iOS") color_prefix=$IOS ;;
+  "HTML5") color_prefix=$HTML5 ;;
+  "Web") color_prefix=$HTML5 ;;
   "Mac OSX") color_prefix=$MAC_OSX ;;
-  UWP) color_prefix=$UWP ;;
+  "macOS") color_prefix=$MAC_OSX ;;
+  "UWP") color_prefix=$UWP ;;
   "Windows Desktop") color_prefix=$WINDOWS ;;
   "Linux/X11") color_prefix=$LINUX ;;
-  Linux) color_prefix=$LINUX ;;
+  "Linux") color_prefix=$LINUX ;;
   *) color_prefix="" ;;
   esac
   color_suffix="\e[0m"
@@ -40,13 +41,16 @@ if [ -z "$preset_name" ]; then
 fi
 
 case "$platform" in
-Android) color_prefix=$ANDROID ;;
-iOS) color_prefix=$IOS ;;
-HTML5 | Web) color_prefix=$HTML5 ;;
+"Android") color_prefix=$ANDROID ;;
+"iOS") color_prefix=$IOS ;;
+"HTML5") color_prefix=$HTML5 ;;
+"Web") color_prefix=$HTML5 ;;
 "Mac OSX") color_prefix=$MAC_OSX ;;
-UWP) color_prefix=$UWP ;;
+"macOS") color_prefix=$MAC_OSX ;;
+"UWP") color_prefix=$UWP ;;
 "Windows Desktop") color_prefix=$WINDOWS ;;
-"Linux/X11" | Linux) color_prefix=$LINUX ;;
+"Linux/X11") color_prefix=$LINUX ;;
+"Linux") color_prefix=$LINUX ;;
 *) color_prefix="" ;;
 esac
 

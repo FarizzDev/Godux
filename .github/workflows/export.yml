@@ -72,7 +72,7 @@ jobs:
         uses: actions/cache@v4
         id: templates-cache
         with:
-          path: ~/.local/share/godot/templates/${{ env.VERSION }}
+          path: ~/.local/share/godot/${{ env.GODOT_MAJOR == '4' && 'export_templates' || 'templates' }}/${{ env.VERSION }}
           key: ${{ runner.os }}-godot-templates-${{ env.VERSION }}
 
       - name: 📥 Download Godot
@@ -85,10 +85,11 @@ jobs:
       - name: 📤 Extract Godot Export Templates
         if: env.CACHE == 'false' || steps.templates-cache.outputs.cache-hit != 'true'
         run: |
+          TEMPLATES_DIR=~/.local/share/godot/$([[ "$GODOT_MAJOR" == "4" ]] && echo "export_templates" || echo "templates")/$VERSION
           curl -L $TEMPLATES_LINK -o godot-templates.tpz
-          mkdir -p ~/.local/share/godot/templates/${{ env.VERSION }}
+          mkdir -p "$TEMPLATES_DIR"
           unzip godot-templates.tpz -d ~/godot-templates
-          mv ~/godot-templates/templates/* ~/.local/share/godot/templates/${{ env.VERSION }}/
+          mv ~/godot-templates/templates/* "$TEMPLATES_DIR"/
           rm -rf ~/godot-templates
 
       - name: ☕ Setup JDK (For Android)

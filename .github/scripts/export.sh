@@ -4,6 +4,8 @@ mkdir -p export
 
 if [[ "$DEBUG" == "true" ]]; then
   EXPORT_FLAG="--export-debug"
+elif [[ "$GODOT_MAJOR" == "4" ]]; then
+  EXPORT_FLAG="--export-release"
 else
   EXPORT_FLAG="--export"
 fi
@@ -19,9 +21,13 @@ get_output_path() {
   case "$p_type" in
   "Android") echo "export/$s_folder/$FILE_BASENAME.$(perl .github/scripts/lib/parse_presets.pl export_format "$p_name")" ;;
   "Windows Desktop") echo "export/$s_folder/$FILE_BASENAME.exe" ;;
+  "Linux") echo "export/$s_folder/$FILE_BASENAME" ;;
   "Linux/X11") echo "export/$s_folder/$FILE_BASENAME" ;;
+  "macOS") echo "export/$s_folder/$FILE_BASENAME.zip" ;;
   "Mac OSX") echo "export/$s_folder/$FILE_BASENAME.zip" ;;
+  "Web") echo "export/$s_folder/index.html" ;;
   "HTML5") echo "export/$s_folder/index.html" ;;
+  "UWP") echo "export/$s_folder/$FILE_BASENAME.appx" ;;
   *) echo "export/$s_folder/$FILE_BASENAME.bin" ;;
   esac
 }
@@ -33,7 +39,7 @@ if [ "$PRESET_NAME" = $'[ Export All Preset ]\u2063' ]; then
   while IFS='|' read -r p_name p_type; do
     echo ">>> Exporting $p_name ($p_type)..."
     OUT=$(get_output_path "$p_name" "$p_type")
-    godot $EXPORT_FLAG "$p_name" "$OUT" 2>&1 | grep -v "VisualServer attempted to free a NULL RID\|at: free (servers/visual"
+    godot --headless $EXPORT_FLAG "$p_name" "$OUT" 2>&1 | grep -v "VisualServer attempted to free a NULL RID\|at: free (servers/visual"
     GODOT_EXIT=${PIPESTATUS[0]}
     if [ $GODOT_EXIT -ne 0 ]; then
       echo "Export failed with exit code $GODOT_EXIT"
@@ -48,7 +54,7 @@ else
 
   OUT=$(get_output_path "$PRESET_NAME" "$PLATFORM")
 
-  godot $EXPORT_FLAG "$PRESET_NAME" "$OUT" 2>&1 | grep -v "VisualServer attempted to free a NULL RID\|at: free (servers/visual"
+  godot --headless $EXPORT_FLAG "$PRESET_NAME" "$OUT" 2>&1 | grep -v "VisualServer attempted to free a NULL RID\|at: free (servers/visual"
   GODOT_EXIT=${PIPESTATUS[0]}
   if [ $GODOT_EXIT -ne 0 ]; then
     echo "Export failed with exit code $GODOT_EXIT"

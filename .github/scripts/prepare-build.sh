@@ -24,4 +24,7 @@ fi
 echo "ISANDROID=${ISANDROID:-false}" >>"$GITHUB_ENV"
 
 VERSION=$(echo "$GODOT_LINK" | sed -E 's|.*\/([0-9.]+)-([a-z0-9]+).*|\1.\2|')
+GODOT_MAJOR=$(echo "$VERSION" | cut -d'.' -f1)
+
 echo "VERSION=$VERSION" >>"$GITHUB_ENV"
+echo "GODOT_MAJOR=$GODOT_MAJOR" >>"$GITHUB_ENV"
