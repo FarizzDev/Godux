@@ -4,15 +4,11 @@ install_dependencies() {
 
   # Check for required commands
   local missing_deps=()
-  for cmd in git gh fzf bc jq; do
+  for cmd in git gh fzf bc jq perl; do
     if ! command -v "$cmd" &>/dev/null; then
       missing_deps+=("$cmd")
     fi
   done
-
-  if ! command -v python3 &>/dev/null && ! command -v python &>/dev/null; then
-    missing_deps+=("python3")
-  fi
 
   if [ ${#missing_deps[@]} -eq 0 ]; then
     echo -e "${INFO} All dependencies are already installed."
@@ -58,33 +54,29 @@ install_dependencies() {
   case "$PKG_MANAGER" in
   apt-get)
     $SUDO apt-get update
-    $SUDO apt-get install -y git gh fzf bc jq python3
+    $SUDO apt-get install -y git gh fzf bc jq perl
     ;;
   brew)
-    brew install git gh fzf bc jq python3
+    brew install git gh fzf bc jq perl
     ;;
   pacman)
-    $SUDO pacman -S --noconfirm git github-cli fzf bc jq python
+    $SUDO pacman -S --noconfirm git github-cli fzf bc jq perl
     ;;
   dnf)
-    $SUDO dnf install -y git gh fzf bc jq python3
+    $SUDO dnf install -y git gh fzf bc jq perl
     ;;
   pkg)
-    pkg install -y git gh fzf bc jq python
+    pkg install -y git gh fzf bc jq perl
     ;;
   esac
 
   # Verify installation
-  for cmd in git gh fzf bc jq; do
+  for cmd in git gh fzf bc jq perl; do
     if ! command -v "$cmd" &>/dev/null; then
       echo -e "${ERROR} Failed to install '$cmd'. Please install it manually and rerun the script."
       exit 1
     fi
   done
-  if ! command -v python3 &>/dev/null && ! command -v python &>/dev/null; then
-    echo -e "${ERROR} Failed to install python. Please install it manually."
-    exit 1
-  fi
 
   echo -e "\e[38;2;61;220;132m# Dependencies installed successfully.\e[0m"
 }

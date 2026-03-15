@@ -1,5 +1,5 @@
 # Get all preset names and their platforms
-presets_with_platforms=$(python3 .github/scripts/lib/parse_presets.py list)
+presets_with_platforms=$(perl .github/scripts/lib/parse_presets.pl list)
 
 options=()
 options+=("$ALL")
@@ -32,7 +32,7 @@ done <<<"$presets_with_platforms"
 
 presetname_raw=$(printf "%b\n" "${options[@]}" | fzf --ansi --no-sort --prompt="Select a preset: ")
 preset_name=$(echo "$presetname_raw" | sed -r 's/\x1B\[[0-9;:]*[mK]//g')
-platform=$(python3 .github/scripts/lib/parse_presets.py platform "$preset_name")
+platform=$(perl .github/scripts/lib/parse_presets.pl platform "$preset_name")
 
 if [ -z "$preset_name" ]; then
   echo -e "${ERROR} No preset selected. Exiting."
