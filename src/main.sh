@@ -144,7 +144,19 @@ cache=$([[ "$cache" =~ ^y(e?s)?$ ]] && echo true || echo false)
 
 # Android requirements
 if [[ "$platform" == "Android" || "$preset_name" == $'[ Export All Preset ]\u2063' ]]; then
-  perl .github/scripts/lib/parse_presets.pl is_android "$preset_name" && ISANDROID=true || ISANDROID=false
+  if [ "$preset_name" = $'[ Export All Preset ]\u2063' ]; then
+    if perl .github/scripts/lib/parse_presets.pl has_android; then
+      ISANDROID=true
+    else
+      ISANDROID=false
+    fi
+  else
+    if perl .github/scripts/lib/parse_presets.pl is_android "$preset_name"; then
+      ISANDROID=true
+    else
+      ISANDROID=false
+    fi
+  fi
 
   if [[ "$ISANDROID" == "true" && ! "$debug" == "true" ]]; then
     echo -ne "${PROMPT} Do you have an existing release.keystore file? (y/N): "

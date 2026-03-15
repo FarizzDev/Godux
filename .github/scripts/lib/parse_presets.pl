@@ -17,6 +17,7 @@
 use strict;
 use warnings;
 use utf8;
+use Encode qw(decode);
 
 my $PRESETS_FILE = $ENV{PRESETS_FILE} // "export_presets.cfg";
 my $EXPORT_ALL_ID = "[ Export All Preset ]\x{2063}";
@@ -156,9 +157,11 @@ if (@ARGV < 1) {
     exit 2;
 }
 
+my @args = map { decode('UTF-8', $_) } @ARGV;
+my $cmd = $args[0];
+my $preset_arg = $args[1] // "";
+
 my @presets = parse_presets($PRESETS_FILE);
-my $cmd = $ARGV[0];
-my $preset_arg = $ARGV[1] // "";
 
 if ($preset_arg eq $EXPORT_ALL_ID) {
     print "\n";
@@ -166,11 +169,11 @@ if ($preset_arg eq $EXPORT_ALL_ID) {
 }
 
 if    ($cmd eq "list")                              { cmd_list(@presets) }
-elsif ($cmd eq "platform"       && @ARGV == 2)     { cmd_platform($ARGV[1], @presets) }
-elsif ($cmd eq "is_android"     && @ARGV == 2)     { cmd_is_android($ARGV[1], @presets) }
+elsif ($cmd eq "platform"       && @args == 2)     { cmd_platform($args[1], @presets) }
+elsif ($cmd eq "is_android"     && @args == 2)     { cmd_is_android($args[1], @presets) }
 elsif ($cmd eq "has_android")                      { cmd_has_android(@presets) }
 elsif ($cmd eq "all_android")                      { cmd_all_android(@presets) }
-elsif ($cmd eq "get"            && @ARGV == 3)     { cmd_get($ARGV[1], $ARGV[2], @presets) }
-elsif ($cmd eq "export_format"  && @ARGV == 2)     { cmd_export_format($ARGV[1], @presets) }
-elsif ($cmd eq "keystore"       && @ARGV == 3)     { cmd_keystore($ARGV[1], $ARGV[2], @presets) }
+elsif ($cmd eq "get"            && @args == 3)     { cmd_get($args[1], $args[2], @presets) }
+elsif ($cmd eq "export_format"  && @args == 2)     { cmd_export_format($args[1], @presets) }
+elsif ($cmd eq "keystore"       && @args == 3)     { cmd_keystore($args[1], $args[2], @presets) }
 else  { print "Usage: see script header\n"; exit 2 }

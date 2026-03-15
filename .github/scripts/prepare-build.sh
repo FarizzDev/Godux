@@ -8,9 +8,17 @@ fi
 
 # Determine if any Android build is happening
 if [ "$PRESET_NAME" = $'[ Export All Preset ]\u2063' ]; then
-  ISANDROID=$(grep -q 'platform="Android"' export_presets.cfg && echo "true")
+  if grep -q 'platform="Android"' export_presets.cfg; then
+    ISANDROID="true"
+  else
+    ISANDROID="false"
+  fi
 else
-  perl .github/scripts/lib/parse_presets.pl is_android "$PRESET_NAME" && ISANDROID=true || ISANDROID=false
+  if perl .github/scripts/lib/parse_presets.pl is_android "$PRESET_NAME"; then
+    ISANDROID="true"
+  else
+    ISANDROID="false"
+  fi
 fi
 
 echo "ISANDROID=${ISANDROID:-false}" >>"$GITHUB_ENV"

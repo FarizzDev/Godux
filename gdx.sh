@@ -229,7 +229,7 @@ install_dependencies() {
   esac
 
   # Verify installation
-  for cmd in git gh fzf bc jq; do
+  for cmd in git gh fzf bc jq perl; do
     if ! command -v "$cmd" &>/dev/null; then
       echo -e "${ERROR} Failed to install '$cmd'. Please install it manually and rerun the script."
       exit 1
@@ -471,7 +471,19 @@ cache=$([[ "$cache" =~ ^y(e?s)?$ ]] && echo true || echo false)
 
 # Android requirements
 if [[ "$platform" == "Android" || "$preset_name" == $'[ Export All Preset ]\u2063' ]]; then
-  perl .github/scripts/lib/parse_presets.pl is_android "$preset_name" && ISANDROID=true || ISANDROID=false
+  if [ "$preset_name" = $'[ Export All Preset ]\u2063' ]; then
+    if perl .github/scripts/lib/parse_presets.pl has_android; then
+      ISANDROID=true
+    else
+      ISANDROID=false
+    fi
+  else
+    if perl .github/scripts/lib/parse_presets.pl is_android "$preset_name"; then
+      ISANDROID=true
+    else
+      ISANDROID=false
+    fi
+  fi
 
   if [[ "$ISANDROID" == "true" && ! "$debug" == "true" ]]; then
     echo -ne "${PROMPT} Do you have an existing release.keystore file? (y/N): "
