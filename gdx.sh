@@ -515,9 +515,15 @@ if [[ "$platform" == "Android" || "$preset_name" == $'[ Export All Preset ]\u206
       gh secret remove RELEASE_KEYSTORE_BASE64 &>/dev/null || true
       echo -ne "${PROMPT} Enter Certificate CN (e.g., Your Name, Your Company): "
       read cert_cn
-      echo -ne "${PROMPT} Enter Organization for Android (O, optional): "
+      echo -ne "${PROMPT} Enter Organization (O) (optional): "
       read org
-      echo -ne "${PROMPT} Enter 2-letter Country Code for Android (C, optional): "
+      echo -ne "${PROMPT} Enter Organizational Unit (OU) (optional): "
+      read org_unit
+      echo -ne "${PROMPT} Enter City/Locality (L) (optional): "
+      read city
+      echo -ne "${PROMPT} Enter State/Province (ST) (optional): "
+      read state
+      echo -ne "${PROMPT} Enter 2-letter Country Code (C) (optional): "
       read country
     fi
 
@@ -548,7 +554,7 @@ echo -e "\e[38;2;61;220;132m# Running workflow...\e[0m"
 args=("export.yml")
 
 # Add fields if inputs are present
-for FIELD in godot_link templates_link preset_name debug cache file_basename cert_cn org country; do
+for FIELD in godot_link templates_link preset_name debug cache file_basename cert_cn org org_unit city state country; do
   VALUE="${!FIELD-}"
   if [ -n "$VALUE" ]; then
     args+=("-f")

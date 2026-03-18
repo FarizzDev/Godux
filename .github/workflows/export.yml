@@ -26,19 +26,19 @@ on:
       file_basename:
         description: "Base name for output files (e.g., MyGame)"
         required: true
-        default: "GoduxExport"
+        default: "MyGame"
       cert_cn:
         description: "Certificate CN (e.g., Your Name, Your Company)"
-        required: false
-        default: "Godux User"
       org:
         description: "Organization for Android (O)"
-        required: false
-        default: "Android"
+      org_unit:
+        description: "Organizational Unit (OU)"
+      city:
+        description: "City/Locality (L)"
+      state:
+        description: "State/Province (ST)"
       country:
         description: "2-letter Country Code for Android (C)"
-        required: false
-        default: "US"
 
 jobs:
   build:
@@ -54,9 +54,6 @@ jobs:
       DEBUG: ${{ inputs.debug }}
       CACHE: ${{ inputs.cache }}
       FILE_BASENAME: ${{ inputs.file_basename }}
-      CERT_CN: ${{ inputs.cert_cn }}
-      ORG: ${{ inputs.org }}
-      COUNTRY: ${{ inputs.country }}
 
     steps:
       - name: 🛒 Checkout repository
@@ -111,9 +108,14 @@ jobs:
           PRESET_NAME: ${{ env.PRESET_NAME }}
           KEYSTORE_USER: ${{ env.KEYSTORE_USER }}
           KEYSTORE_PASS: ${{ env.KEYSTORE_PASS }}
-          CERT_CN: ${{ env.CERT_CN }}
-          ORG: ${{ env.ORG }}
-          COUNTRY: ${{ env.COUNTRY }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          KEYSTORE_USER: ${{ secrets.KEYSTORE_USER }}
+          CERT_CN: ${{ inputs.cert_cn }}
+          ORG: ${{ inputs.org }}
+          ORG_UNIT: ${{ inputs.org_unit }}
+          CITY: ${{ inputs.city }}
+          STATE: ${{ inputs.state }}
+          COUNTRY: ${{ inputs.country }}
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           FILE_BASENAME: ${{ env.FILE_BASENAME }}
 
