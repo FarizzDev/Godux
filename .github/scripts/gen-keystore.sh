@@ -2,12 +2,15 @@
 set -e
 
 if [ "$PRESET_NAME" = $'[ Export All Preset ]\u2063' ]; then
-  DEBUG_KEYSTORE_PATH="debug.keystore"
-  RELEASE_KEYSTORE_PATH="release.keystore"
+  FIRST_ANDROID=$(perl .github/scripts/lib/parse_presets.pl all_android | head -1)
+  DEBUG_KEYSTORE_PATH=$(perl .github/scripts/lib/parse_presets.pl keystore "$FIRST_ANDROID" debug)
+  RELEASE_KEYSTORE_PATH=$(perl .github/scripts/lib/parse_presets.pl keystore "$FIRST_ANDROID" release)
 else
   DEBUG_KEYSTORE_PATH=$(perl .github/scripts/lib/parse_presets.pl keystore "$PRESET_NAME" debug)
   RELEASE_KEYSTORE_PATH=$(perl .github/scripts/lib/parse_presets.pl keystore "$PRESET_NAME" release)
 fi
+
+DEBUG_KEYSTORE_PATH=${DEBUG_KEYSTORE_PATH:-"debug.keystore"}
 
 echo "DEBUG_KEYSTORE_PATH=$DEBUG_KEYSTORE_PATH" >>"$GITHUB_ENV"
 echo "RELEASE_KEYSTORE_PATH=$RELEASE_KEYSTORE_PATH" >>"$GITHUB_ENV"

@@ -4,10 +4,12 @@
 set -euo pipefail
 
 # Auto-Update
-VERSION="v0.7.0-dev1"
-UPSTREAM_REPO="FarizzDev/Godux"
-CHECK_INTERVAL=86400 # 24 hours in seconds
-LAST_CHECK_FILE=~/.godux_last_check
+readonly VERSION="v1.0.0"
+readonly UPSTREAM_REPO="FarizzDev/Godux"
+readonly CHECK_INTERVAL=86400 # 24 hours in seconds
+readonly LAST_CHECK_FILE=~/.godux_last_check
+
+CONFIG_FILE=".godux/config"
 
 # Colors
 RED='\033[0;31m'
@@ -24,21 +26,23 @@ ERROR="${RED}[✗]${RESET}"
 SUCCESS="${GREEN}[✓]${RESET}"
 PROMPT="${CYAN}[?]${RESET}"
 
-source ./update_check.sh
-source ./sync_files.sh
-source ./env_check.sh
+catch_error() {
+  local exit_code=$?
+  local line_no=$1
+  local command_failed=$2
 
-# Cleanup function to remove secrets
+  echo -e "${ERROR} Script failed at line ${line_no}: '${command_failed}' (Exit code: ${exit_code})"
+}
+
 endProgram() {
   exitcode=$?
   trap - INT TERM EXIT
   printf "\nCleaning up...\n"
-  if [[ -n "${user:-}" ]]; then
-    echo "Removing repository secrets..."
-    gh secret delete KEYSTORE_USER &>/dev/null
-    gh secret delete KEYSTORE_PASS &>/dev/null
-  fi
-  unset GITHUB_TOKEN
+  echo "Removing repository secrets..."
+  gh secret delete KEYSTORE_USER &>/dev/null || true
+  gh secret delete KEYSTORE_PASS &>/dev/null || true
+  gh secret delete RELEASE_KEYSTORE_BASE64 &>/dev/null || true
+  gh secret delete EXPORT_CREDENTIALS &>/dev/null || true
   unset keypass
 
   echo -e "\e[38;2;61;220;132mThank you for using this tool!"
@@ -53,8 +57,12 @@ endProgram() {
   exit $exitcode
 }
 
-# Trap interrupts and exits
+trap 'catch_error $LINENO "$BASH_COMMAND"' ERR
 trap endProgram INT TERM EXIT
+
+source ./update_check.sh
+source ./sync_files.sh
+source ./env_check.sh
 
 checkForUpdates
 syncFiles
@@ -117,19 +125,42 @@ validate_url() {
   fi
 }
 
+if [ -f "$CONFIG_FILE" ]; then
+  source "$CONFIG_FILE"
+fi
+
 printf "\n"
 # Input links
-echo -ne "${PROMPT} Enter Godot link (default Godot v3.6-stable): "
+DEFAULT_GODOT=${GODOT_LINK:-"https://github.com/godotengine/godot/releases/download/3.6-stable/Godot_v3.6-stable_linux_headless.64.zip"}
+DEFAULT_TEMPLATES=${TEMPLATES_LINK:-"https://github.com/godotengine/godot/releases/download/3.6-stable/Godot_v3.6-stable_export_templates.tpz"}
+
+DEFAULT_GODOT_VERSION=$(echo "$DEFAULT_GODOT" | grep -oP '\d+[\d.]*-\w+' | head -1)
+DEFAULT_TEMPLATES_VERSION=$(echo "$DEFAULT_TEMPLATES" | grep -oP '\d+[\d.]*-\w+' | head -1)
+
+echo -ne "${PROMPT} Enter Godot link (default: $DEFAULT_GODOT_VERSION): "
 read godot_link
+godot_link=${godot_link:-$DEFAULT_GODOT}
 validate_url "$godot_link" "Godot link"
 
-echo -ne "${PROMPT} Enter Templates link (default Godot v3.6-stable): "
+echo -ne "${PROMPT} Enter Templates link (default: $DEFAULT_TEMPLATES_VERSION): "
 read templates_link
+templates_link=${templates_link:-$DEFAULT_TEMPLATES}
 validate_url "$templates_link" "Templates link"
 
-# Debug and Cache input
-echo -ne "${PROMPT} Enter a base name for output files (e.g., MyGame): "
+# Save config
+mkdir -p .godux
+cat >"$CONFIG_FILE" <<EOF
+GODOT_LINK="$godot_link"
+TEMPLATES_LINK="$templates_link"
+EOF
+
+DEFAULT_BASENAME=$(grep -oP '(?<=config/name=")[^"]+' project.godot 2>/dev/null | tr ' ' '_')
+
+echo -ne "${PROMPT} Enter a file name for output files (default: ${DEFAULT_BASENAME:-MyGame}): "
 read file_basename
+file_basename=${file_basename:-${DEFAULT_BASENAME:-MyGame}}
+
+# Debug and Cache input
 echo -ne "${PROMPT} Enable debug? (y/N): "
 read debug
 debug=${debug,,}
@@ -158,15 +189,34 @@ if [[ "$platform" == "Android" || "$preset_name" == $'[ Export All Preset ]\u206
     fi
   fi
 
-  if [[ "$ISANDROID" == "true" && ! "$debug" == "true" ]]; then
-    echo -ne "${PROMPT} Do you have an existing release.keystore file? (y/N): "
+  if [[ "$ISANDROID" == "true" && "$debug" == "false" ]]; then
+
+    if [ "$preset_name" = $'[ Export All Preset ]\u2063' ]; then
+      FIRST_ANDROID=$(perl .github/scripts/lib/parse_presets.pl all_android | head -1)
+      if [ -n "$FIRST_ANDROID" ]; then
+        user=$(perl .github/scripts/lib/parse_presets.pl keystore "$FIRST_ANDROID" release_user)
+        keypass=$(perl .github/scripts/lib/parse_presets.pl keystore "$FIRST_ANDROID" release_password)
+      fi
+    else
+      user=$(perl .github/scripts/lib/parse_presets.pl keystore "$preset_name" release_user)
+      keypass=$(perl .github/scripts/lib/parse_presets.pl keystore "$preset_name" release_password)
+    fi
+
+    if [ -z "$user" ] || [ -z "$keypass" ]; then
+      printf "\n"
+      echo -e "${ERROR} Release keystore credentials not found in preset."
+      echo -e "${INFO} Please set keystore/release_user and keystore/release_password in your export preset."
+      exit 1
+    fi
+
+    echo -ne "${PROMPT} Do you have a keystore file? (y/N): "
     read has_keystore
     has_keystore=${has_keystore,,}
     has_keystore=${has_keystore:-n}
 
     if [[ "$has_keystore" =~ ^y(e?s)?$ ]]; then
       while true; do
-        echo -ne "${PROMPT} Enter the path to your release.keystore file: "
+        echo -ne "${PROMPT} Enter the path to your keystore file: "
         read -e keystore_path
 
         if [ -f "$keystore_path" ]; then
@@ -180,8 +230,7 @@ if [[ "$platform" == "Android" || "$preset_name" == $'[ Export All Preset ]\u206
       keystore_base64=$(base64 -w 0 "$keystore_path")
       gh secret set RELEASE_KEYSTORE_BASE64 --body "$keystore_base64"
     else
-      echo -e "${INFO} No existing keystore. We will generate a new one."
-      gh secret remove RELEASE_KEYSTORE_BASE64 &>/dev/null || true
+      echo -e "${INFO} No existing keystore. We will generate a new one.\n"
       echo -ne "${PROMPT} Enter Certificate CN (e.g., Your Name, Your Company): "
       read cert_cn
       echo -ne "${PROMPT} Enter Organization (O) (optional): "
@@ -195,26 +244,24 @@ if [[ "$platform" == "Android" || "$preset_name" == $'[ Export All Preset ]\u206
       echo -ne "${PROMPT} Enter 2-letter Country Code (C) (optional): "
       read country
     fi
-
-    echo -ne "${PROMPT} Enter 'user' alias for Android keystore: "
-    read user
-    echo -ne "${PROMPT} Enter 'pass' for Android keystore: "
-    read -s keypass
-    while [[ ${#keypass} -lt 6 ]]; do
-      echo "Keypass must be at least 6 characters long."
-      echo -ne "${PROMPT} Enter 'pass' for Android keystore: "
-      read -s keypass
-    done
-  else
+  elif [[ "$ISANDROID" == "true" ]]; then
     user="androiddebugkey"
     keypass="android"
     cert_cn="Android Debug"
   fi
 
-  printf "\n"
-  echo "Setting repository secrets..."
-  gh secret set KEYSTORE_USER --body "$user"
-  gh secret set KEYSTORE_PASS --body "$keypass"
+  user=${user:-""}
+  keypass=${keypass:-""}
+  if [ -n "$user" ] && [ -n "$keypass" ]; then
+    printf "\n"
+    echo "Setting repository secrets..."
+    gh secret set KEYSTORE_USER --body "$user"
+    gh secret set KEYSTORE_PASS --body "$keypass"
+  fi
+fi
+
+if [ -f ".godot/export_credentials.cfg" ]; then
+  gh secret set EXPORT_CREDENTIALS --body "$(base64 -w 0 .godot/export_credentials.cfg)"
 fi
 
 printf "\n"
@@ -322,6 +369,11 @@ if [[ "$CONCLUSION" == "success" ]]; then
   echo -e "${SUCCESS} Workflow succeeded!\e[0m"
   printf "\n"
 
+  if [[ "$preset_name" == $'[ Export All Preset ]\u2063' ]]; then
+    gh run view "$WORKFLOW_ID" | grep -E "\[!\] Export failed" | sed 's/.*\[!\]/[!]/' || true
+    printf "\n"
+  fi
+
   RELEASE_TAG="build-$WORKFLOW_ID"
   echo -e "${SUCCESS} Build has been published as a release with tag: $RELEASE_TAG"
 
@@ -331,8 +383,7 @@ if [[ "$CONCLUSION" == "success" ]]; then
   ASSET_SIZE=$(echo "$ASSET_INFO" | jq -r '.size')
 
   if [[ -n "$ASSET_NAME" ]]; then
-    timestamp=$(date +"%Y%m%d_%H%M%S")
-    export_dir="./export/$timestamp"
+    export_dir="./export"
     mkdir -p "$export_dir"
 
     ASSET_SIZE_MB=$(echo "scale=2; $ASSET_SIZE / 1024 / 1024" | bc)

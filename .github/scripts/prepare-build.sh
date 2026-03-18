@@ -6,6 +6,11 @@ if [ ! -f export_presets.cfg ]; then
   exit 1
 fi
 
+if [[ -n "$EXPORT_CREDENTIALS" ]]; then
+  mkdir .godot
+  echo "$EXPORT_CREDENTIALS" | base64 -d >.godot/export_credentials.cfg
+fi
+
 # Determine if any Android build is happening
 if [ "$PRESET_NAME" = $'[ Export All Preset ]\u2063' ]; then
   if grep -q 'platform="Android"' export_presets.cfg; then

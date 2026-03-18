@@ -35,9 +35,9 @@ sub parse_presets {
     while (my $line = <$fh>) {
         $line =~ s/[\r\n]+$//;
 
-        if ($line =~ /^\[preset\.\d+\]$/) {
+        if ($line =~ /^\[preset\.(\d+)\]$/) {
             push @presets, $current if defined $current;
-            $current = { name => "", platform => "", options => {} };
+            $current = { name => "", platform => "", options => {}, index => $1 };
             $in_options = 0;
             next;
         }
@@ -69,12 +69,51 @@ sub parse_presets {
     return @presets;
 }
 
+sub parse_credentials {
+    my ($index) = @_;
+    my $creds_file = ".godot/export_credentials.cfg";
+
+    open(my $fh, "<:encoding(UTF-8)", $creds_file) or return {};
+
+    my $in_preset = 0;
+    my %creds;
+
+    while (my $line = <$fh>) {
+        $line =~ s/[\r\n]+$//;
+
+        if ($line =~ /^\[preset\.$index\]$/) {
+            $in_preset = 1;
+            next;
+        }
+
+        if ($in_preset && $line =~ /^\[preset\.\d+\]/) {
+            last;
+        }
+
+        if ($in_preset && $line =~ /^([^=]+)="([^"]*)"/) {
+            my ($key, $value) = ($1, $2);
+            $key =~ s/^\s+|\s+$//g;
+            $creds{$key} = $value;
+        }
+    }
+
+    close($fh);
+    return \%creds;
+}
+
 sub find_preset {
     my ($name, @presets) = @_;
     for my $p (@presets) {
         return $p if $p->{name} eq $name;
     }
     return undef;
+}
+
+sub get_index {
+    my ($name, @presets) = @_;
+    my $p = find_preset($name, @presets);
+    if (!$p) { print STDERR "Error: Preset '$name' not found.\n"; exit 1; }
+    return $p ? $p->{index} : undef;
 }
 
 # --- Commands ---
@@ -138,17 +177,24 @@ sub cmd_export_format {
 
 sub cmd_keystore {
     my ($name, $type, @presets) = @_;
-    unless ($type eq "debug" || $type eq "release") {
-        print STDERR "Error: keystore type must be 'debug' or 'release'\n";
+    unless ($type =~ /^(debug|release)(_user|_password)?$/) {
+        print STDERR "Error: keystore type must be 'debug', 'release', 'debug_user', 'debug_password', 'release_user', or 'release_password'\n";
         exit 2;
     }
     my $p = find_preset($name, @presets);
     if (!$p) { print STDERR "Error: Preset '$name' not found.\n"; exit 1; }
     if ($p->{platform} ne "Android") { print "\n"; exit 0; }
-    my $default = $type eq "debug" ? "debug.keystore" : "release.keystore";
+
     my $path = $p->{options}{"keystore/$type"} // "";
     $path =~ s/^res:\/\///;
-    print(($path ? $path : $default) . "\n");
+
+    if (!$path && -f ".godot/export_credentials.cfg") {
+        my $index = get_index($name, @presets);
+        my $creds = parse_credentials($index);
+        $path = $creds->{"keystore/$type"} // "";
+    }
+
+    print($path . "\n");
 }
 
 # --- Main ---
