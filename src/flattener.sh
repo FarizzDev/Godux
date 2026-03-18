@@ -20,6 +20,11 @@ expand_file() {
 
       target="${target%% \#*}"
 
+      if [[ "$target" == *'$'* ]]; then
+        printf "%s\n" "$line"
+        continue
+      fi
+
       expand_file "$target"
     else
       printf "%s\n" "$line"

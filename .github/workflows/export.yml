@@ -49,8 +49,6 @@ jobs:
       GODOT_LINK: ${{ inputs.godot_link }}
       TEMPLATES_LINK: ${{ inputs.templates_link }}
       PRESET_NAME: ${{ inputs.preset_name }}
-      KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
-      KEYSTORE_USER: ${{ secrets.KEYSTORE_USER }}
       DEBUG: ${{ inputs.debug }}
       CACHE: ${{ inputs.cache }}
       FILE_BASENAME: ${{ inputs.file_basename }}
@@ -63,6 +61,7 @@ jobs:
         run: bash .github/scripts/prepare-build.sh
         env:
           GODOT_LINK: ${{ env.GODOT_LINK }}
+          EXPORT_CREDENTIALS: ${{ secrets.EXPORT_CREDENTIALS }}
 
       - name: 📝 Godot Export Templates Cache
         if: env.CACHE == 'true'
@@ -106,8 +105,6 @@ jobs:
         env:
           DEBUG: ${{ env.DEBUG }}
           PRESET_NAME: ${{ env.PRESET_NAME }}
-          KEYSTORE_USER: ${{ env.KEYSTORE_USER }}
-          KEYSTORE_PASS: ${{ env.KEYSTORE_PASS }}
           KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
           KEYSTORE_USER: ${{ secrets.KEYSTORE_USER }}
           CERT_CN: ${{ inputs.cert_cn }}
@@ -131,4 +128,5 @@ jobs:
       - name: 🚀 Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "build-${{ github.run_id }}" "${{ env.FILE_BASENAME }}-build.zip" --notes "Automated build from GitHub Actions"
+          RESULT_FILE_NAME: ${{ env.RESULT_FILE_NAME }}
+        run: gh release create "build-${{ github.run_id }}" "$RESULT_FILE_NAME" --notes "Automated build from GitHub Actions"

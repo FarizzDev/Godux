@@ -43,14 +43,13 @@ install_dependencies() {
   elif command -v pkg &>/dev/null; then
     PKG_MANAGER="pkg"
   else
-    echo -e "${ERROR} Could not detect a supported package manager (apt, brew, pacman, dnf, pkg)."
+    echo -e "${WARN} Could not detect a supported package manager (apt, brew, pacman, dnf, pkg)."
     echo -e "${INFO} Please install the missing dependencies manually: ${missing_deps[*]}"
     exit 1
   fi
 
   echo -e "${INFO} Attempting to install using '$PKG_MANAGER'..."
 
-  # Package names per PM
   case "$PKG_MANAGER" in
   apt-get)
     $SUDO apt-get update

@@ -16,7 +16,7 @@ checkForUpdates() {
   date +%s >"$LAST_CHECK_FILE"
 
   if ! LATEST_VERSION=$(gh api repos/$UPSTREAM_REPO/releases/latest --jq .tag_name 2>/dev/null); then
-    echo -e "${WARN} Could not fetch releases. Are you offline?"
+    echo -e "${WARN} Could not fetch releases. Please check your internet connection"
     return
   fi
 

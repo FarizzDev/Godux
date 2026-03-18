@@ -12,9 +12,8 @@ cat <<"EOF"
          | |_| | |_| | |_| | |_| |/  \
           \____|\___/|____/ \___//_/\_\
 EOF
-echo -e "\e[0m"
+echo -e "\e[1m\e[38;2;255;165;0m                               $VERSION\e[0m\n"
 echo -e "              \e[38;2;255;255;255mGodot Universal Export\e[0m"
-echo ""
 printf "%${PADDING}s" ""
 echo -e "\e[38;2;255;255;0m${TAGLINE}\e[0m"
 echo -e "\e[38;2;72;118;255m====================================================\e[0m"

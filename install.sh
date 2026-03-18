@@ -34,12 +34,73 @@ download() {
   fi
 }
 
+install_dependencies() {
+  local missing_deps=()
+  for cmd in git gh fzf bc jq perl; do
+    if ! command -v "$cmd" &>/dev/null; then
+      missing_deps+=("$cmd")
+    fi
+  done
+
+  if [ ${#missing_deps[@]} -eq 0 ]; then
+    return
+  fi
+
+  local SUDO=""
+  if [[ $EUID -ne 0 ]] && command -v sudo &>/dev/null; then
+    SUDO="sudo"
+  fi
+
+  if command -v apt-get &>/dev/null; then
+    PKG_MANAGER="apt-get"
+  elif command -v brew &>/dev/null; then
+    PKG_MANAGER="brew"
+  elif command -v pacman &>/dev/null; then
+    PKG_MANAGER="pacman"
+  elif command -v dnf &>/dev/null; then
+    PKG_MANAGER="dnf"
+  elif command -v pkg &>/dev/null; then
+    PKG_MANAGER="pkg"
+  else
+    log_warn "Could not detect a supported package manager (apt, brew, pacman, dnf, pkg)."
+    log_info "Please install the missing dependencies manually: ${missing_deps[*]}"
+    exit 1
+  fi
+
+  case "$PKG_MANAGER" in
+  apt-get)
+    $SUDO apt-get update
+    $SUDO apt-get install -y git gh fzf bc jq perl
+    ;;
+  brew)
+    brew install git gh fzf bc jq perl
+    ;;
+  pacman)
+    $SUDO pacman -S --noconfirm git github-cli fzf bc jq perl
+    ;;
+  dnf)
+    $SUDO dnf install -y git gh fzf bc jq perl
+    ;;
+  pkg)
+    pkg install -y git gh fzf bc jq perl
+    ;;
+  esac
+
+  # Verify installation
+  for cmd in git gh fzf bc jq perl; do
+    if ! command -v "$cmd" &>/dev/null; then
+      log_error "Failed to install '$cmd'. Please install it manually."
+      exit 1
+    fi
+  done
+}
+
 main() {
   log_info "Fetching latest release..."
   LATEST_VERSION=$(curl -fsSL "https://api.github.com/repos/$UPSTREAM_REPO/releases/latest" | grep '"tag_name"' | cut -d'"' -f4)
 
   if [ -z "$LATEST_VERSION" ]; then
-    log_error "Could not fetch latest version. Are you offline?"
+    log_error "Could not fetch latest version. Please check your internet connection"
     exit 1
   fi
 
@@ -68,6 +129,9 @@ main() {
   log_success "Checksum passed."
   mv "$TEMP_FILE" "$INSTALL_DIR/gdx"
   chmod +x "$INSTALL_DIR/gdx"
+
+  log_info "Installing dependencies..."
+  install_dependencies
 
   # PATH check
   if [[ "$INSTALL_DIR" == "$HOME/.local/bin" ]]; then
