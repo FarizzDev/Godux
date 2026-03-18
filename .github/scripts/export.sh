@@ -36,19 +36,34 @@ if [ "$PRESET_NAME" = $'[ Export All Preset ]\u2063' ]; then
   # name|platform
   presets=$(perl .github/scripts/lib/parse_presets.pl list)
 
+  SUCCEEDED=()
+  FAILED=()
+
   while IFS='|' read -r p_name p_type; do
-    echo ">>> Exporting $p_name ($p_type)..."
+    echo "::group::>>> Exporting $p_name ($p_type)..."
     OUT=$(get_output_path "$p_name" "$p_type")
     godot --headless $EXPORT_FLAG "$p_name" "$OUT" 2>&1 | grep -v "VisualServer attempted to free a NULL RID\|at: free (servers/visual"
     GODOT_EXIT=${PIPESTATUS[0]}
     if [ $GODOT_EXIT -ne 0 ]; then
-      echo "Export failed with exit code $GODOT_EXIT"
-      exit $GODOT_EXIT
+      echo "::notice::[!] Export failed for $p_name"
+      FAILED+=("$p_name")
+    else
+      SUCCEEDED+=("$p_name")
     fi
+    echo "::endgroup::"
   done <<<"$presets"
+
+  if [ ${#SUCCEEDED[@]} -eq 0 ]; then
+    echo "::error title=All exports failed!::[ERROR] All exports failed!"
+    exit 1
+  fi
+
+  if [ ${#FAILED[@]} -gt 0 ]; then
+    echo "::warning title=${#FAILED[@]} export(s) failed::${#FAILED[@]} export(s) failed - Failed: ${FAILED[*]}"
+  fi
 else
   # Export Single Preset
-  echo ">>> Exporting $PRESET_NAME..."
+  echo "::group::>>> Exporting $PRESET_NAME..."
 
   PLATFORM=$(perl .github/scripts/lib/parse_presets.pl platform "$PRESET_NAME")
 
@@ -58,8 +73,10 @@ else
   GODOT_EXIT=${PIPESTATUS[0]}
   if [ $GODOT_EXIT -ne 0 ]; then
     echo "Export failed with exit code $GODOT_EXIT"
+    echo "::endgroup::"
     exit $GODOT_EXIT
   fi
+  echo "::endgroup::"
 fi
 
 # Android Keystore
