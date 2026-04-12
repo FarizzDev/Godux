@@ -60,6 +60,12 @@ endProgram() {
 trap 'catch_error $LINENO "$BASH_COMMAND"' ERR
 trap endProgram INT TERM EXIT
 
+# Authenticate with GitHub
+if ! gh auth status &>/dev/null; then
+  echo -e "${INFO} GitHub CLI not authenticated."
+  gh auth login
+fi
+
 checkForUpdates() {
   if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then return 0; fi
 
@@ -322,11 +328,6 @@ fi
 if [ -z "$(git config --get-all user.email)" ]; then
   read -p "Git email: " email
   git config --global user.email "$email"
-fi
-# Authenticate with GitHub
-if ! gh auth status &>/dev/null; then
-  echo -e "${INFO} GitHub CLI not authenticated."
-  gh auth login
 fi
 
 GITHUB_USERNAME="$(gh api user --jq .login)"

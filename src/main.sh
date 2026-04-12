@@ -60,6 +60,12 @@ endProgram() {
 trap 'catch_error $LINENO "$BASH_COMMAND"' ERR
 trap endProgram INT TERM EXIT
 
+# Authenticate with GitHub
+if ! gh auth status &>/dev/null; then
+  echo -e "${INFO} GitHub CLI not authenticated."
+  gh auth login
+fi
+
 source ./update_check.sh
 source ./sync_files.sh
 source ./env_check.sh

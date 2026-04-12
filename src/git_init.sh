@@ -7,11 +7,6 @@ if [ -z "$(git config --get-all user.email)" ]; then
   read -p "Git email: " email
   git config --global user.email "$email"
 fi
-# Authenticate with GitHub
-if ! gh auth status &>/dev/null; then
-  echo -e "${INFO} GitHub CLI not authenticated."
-  gh auth login
-fi
 
 GITHUB_USERNAME="$(gh api user --jq .login)"
 if [[ -z "$GITHUB_USERNAME" ]]; then
